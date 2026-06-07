@@ -6,7 +6,7 @@ const (
 	ExactLength      = "xl"
 	AddressTracker   = "tr"
 	WebSeed          = "ws"
-	AcceptableSource = "ac"
+	AcceptableSource = "as"
 	ExactSource      = "xs"
 	KeywordTopic     = "kt"
 	ManifestTopic    = "mt"

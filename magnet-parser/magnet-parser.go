@@ -17,11 +17,14 @@ func ParseMagnet(magnetLink string) (MagnetURI, error) {
 	if !found {
 		return MagnetURI{}, ErrInvalidMagnetLink
 	}
-	//
-	// KeysMap := extractKeysFromLink(strings.Split(cutMagnet, "&"))
-	// return mapKeysToMagnetURI(KeysMap), nil
-	//
-	return mapKeysToMagnetURI(extractKeysFromLink(strings.Split(cutMagnet, "&"))), nil
+
+	magnetURI := mapKeysToMagnetURI(extractKeysFromLink(strings.Split(cutMagnet, "&")))
+
+	if magnetURI.ExactTopic == "" {
+		return MagnetURI{}, ErrMissingExactTopic
+	}
+
+	return magnetURI, nil
 }
 
 func extractKeysFromLink(parts []string) map[string][]string {
@@ -32,7 +35,6 @@ func extractKeysFromLink(parts []string) map[string][]string {
 				_, value, found := strings.Cut(parts[i], fmt.Sprintf("%s=", KeysArr[j]))
 
 				if found {
-					fmt.Println(value)
 					KeysMap[KeysArr[j]] = append(KeysMap[KeysArr[j]], value)
 				}
 			}
