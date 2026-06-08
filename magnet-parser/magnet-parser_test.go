@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,10 +29,11 @@ func TestStringReceivedIsNotMagnet(t *testing.T) {
 
 func TestParseMagnet(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    MagnetURI
-		wantErr bool
+		name        string
+		input       string
+		want        MagnetURI
+		wantErr     bool
+		expectedErr error
 	}{
 		{
 			name:  "Valid Ubuntu Magnet (Full Base Case)",
@@ -114,28 +116,64 @@ func TestParseMagnet(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Error: Empty Input String",
-			input:   "",
-			want:    MagnetURI{},
-			wantErr: true,
+			name: "Exact Source, Keyword Topic, Manifest Topic and Select Only",
+			input: "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82" +
+				"&xs=http%3A%2F%2Fcache.example.com%2Ffile" +
+				"&kt=ubuntu+linux+iso" +
+				"&mt=http%3A%2F%2Fexample.com%2Fmeta.txt" +
+				"&so=0-2",
+			want: MagnetURI{
+				ExactTopic:    "urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82",
+				ExactSource:   "http%3A%2F%2Fcache.example.com%2Ffile",
+				KeywordTopic:  "ubuntu+linux+iso",
+				ManifestTopic: "http%3A%2F%2Fexample.com%2Fmeta.txt",
+				SelectOnly:    "0-2",
+			},
+			wantErr: false,
 		},
 		{
-			name:    "Error: Missing Magnet Scheme prefix",
-			input:   "?xt=urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82",
-			want:    MagnetURI{},
-			wantErr: true,
+			name:  "Unknown Keys Are Ignored",
+			input: "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82&foo=bar&unknown=123",
+			want: MagnetURI{
+				ExactTopic: "urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82",
+			},
+			wantErr: false,
 		},
 		{
-			name:    "Error: HTTP Link Passed Instead",
-			input:   "https://ubuntu.com",
-			want:    MagnetURI{},
-			wantErr: true,
+			name:  "Key Without Value Separator Is Skipped",
+			input: "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82&dn&tr",
+			want: MagnetURI{
+				ExactTopic: "urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82",
+			},
+			wantErr: false,
 		},
 		{
-			name:    "Error: Missing Exact Topic (xt) Parameter",
-			input:   "magnet:?dn=ubuntu-22.04.iso&xl=4718592000",
-			want:    MagnetURI{},
-			wantErr: true, // Standard magnets usually require an 'xt' topic to be valid
+			name:        "Error: Empty Input String",
+			input:       "",
+			want:        MagnetURI{},
+			wantErr:     true,
+			expectedErr: ErrInvalidMagnetLink,
+		},
+		{
+			name:        "Error: Missing Magnet Scheme prefix",
+			input:       "?xt=urn:btih:08ada5a7a6183aae1e09d831df674416d7467d82",
+			want:        MagnetURI{},
+			wantErr:     true,
+			expectedErr: ErrInvalidMagnetLink,
+		},
+		{
+			name:        "Error: HTTP Link Passed Instead",
+			input:       "https://ubuntu.com",
+			want:        MagnetURI{},
+			wantErr:     true,
+			expectedErr: ErrInvalidMagnetLink,
+		},
+		{
+			name:        "Error: Missing Exact Topic (xt) Parameter",
+			input:       "magnet:?dn=ubuntu-22.04.iso&xl=4718592000",
+			want:        MagnetURI{},
+			wantErr:     true, // Standard magnets usually require an 'xt' topic to be valid
+			expectedErr: ErrMissingExactTopic,
 		},
 	}
 
@@ -143,12 +181,18 @@ func TestParseMagnet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseMagnet(tt.input)
 
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("ParseMagnet() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ParseMagnet() expected error %v, got nil", tt.expectedErr)
+				}
+				if tt.expectedErr != nil && !errors.Is(err, tt.expectedErr) {
+					t.Fatalf("ParseMagnet() error = %v, want %v", err, tt.expectedErr)
+				}
+				return
 			}
 
-			if tt.wantErr {
-				return
+			if err != nil {
+				t.Fatalf("ParseMagnet() unexpected error: %v", err)
 			}
 
 			if diff := cmp.Diff(tt.want, got); diff != "" {

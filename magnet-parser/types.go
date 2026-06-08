@@ -17,4 +17,5 @@ type MagnetURI struct {
 	Peer          string
 }
 
-var KeysArr = []string{ExactTopic, DisplayName, ExactLength, AddressTracker, WebSeed, AcceptableSource, Peer}
+// TO DO: WebSeed can also be a slice. It can have multiple values. Update this and then the parser and the tests.
+var KeysArr = []string{ExactTopic, DisplayName, ExactLength, AddressTracker, WebSeed, AcceptableSource, ExactSource, KeywordTopic, ManifestTopic, SelectOnly, Peer}
