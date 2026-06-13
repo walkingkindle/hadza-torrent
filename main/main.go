@@ -36,11 +36,12 @@ func handleIsTorrentFile(reader *bufio.Reader) {
 	torrentFileLocation, err := readInputFromUser(reader)
 	printInputReadErrorIfExists(err)
 
-	result, err := bencodeparser.Decode(torrentFileLocation)
+	dict, infoHash, err := bencodeparser.Decode(torrentFileLocation)
 
 	printInputReadErrorIfExists(err)
 
-	fmt.Print("Length of result is %s", len(result))
+	fmt.Printf("%#v\n", dict)
+	fmt.Printf("info hash: %x\n", infoHash)
 }
 
 func handleIsMagnetLink(reader *bufio.Reader) {
