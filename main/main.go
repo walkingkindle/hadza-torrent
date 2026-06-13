@@ -40,7 +40,7 @@ func handleIsTorrentFile(reader *bufio.Reader) {
 
 	printInputReadErrorIfExists(err)
 
-	fmt.Printf("raw bytes: %v\n", result)
+	fmt.Print("Length of result is %s", len(result))
 }
 
 func handleIsMagnetLink(reader *bufio.Reader) {
