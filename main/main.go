@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,8 @@ import (
 
 	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/magnet-parser"
+	torrentParser "torrent-client-go/torrent"
+	"torrent-client-go/tracker"
 )
 
 func main() {
@@ -21,27 +24,55 @@ func main() {
 	sentence, err := readInputFromUser(reader)
 	printInputReadErrorIfExists(err)
 
+	peer, err := generatePeerID()
+	if err != nil {
+		fmt.Print("invalid value for peer id")
+		return
+	}
+
 	switch sentence {
 	case "1":
 		handleIsMagnetLink(reader)
 	case "2":
-		handleIsTorrentFile(reader)
+		handleIsTorrentFile(reader, string(peer))
 	default:
 		fmt.Println("Invalid input value,bye")
 	}
 }
 
-func handleIsTorrentFile(reader *bufio.Reader) {
+func generatePeerID() ([]byte, error) {
+	bytes := make([]byte, 20)
+
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return bytes, nil
+}
+
+func handleIsTorrentFile(reader *bufio.Reader, peerID string) {
 	fmt.Print("Please input the torrent file location. \n")
 	torrentFileLocation, err := readInputFromUser(reader)
 	printInputReadErrorIfExists(err)
 
-	dict, infoHash, err := bencodeparser.Decode(torrentFileLocation)
+	fmt.Print("Reading torrent file \n")
+
+	bytes, err := getRawBytesFromFile(torrentFileLocation)
 
 	printInputReadErrorIfExists(err)
 
-	fmt.Printf("%#v\n", dict)
-	fmt.Printf("info hash: %x\n", infoHash)
+	dict, infoHash, err := bencodeparser.Decode(bytes)
+
+	printInputReadErrorIfExists(err)
+
+	torrentStruct, err := torrentParser.MapDataToTorrentFile(dict, infoHash)
+
+	printInputReadErrorIfExists(err)
+	url, err := tracker.GetPeers(torrentStruct, peerID)
+
+	fmt.Print(url)
+	printInputReadErrorIfExists(err)
 }
 
 func handleIsMagnetLink(reader *bufio.Reader) {
@@ -68,4 +99,21 @@ func readInputFromUser(reader *bufio.Reader) (string, error) {
 	}
 	cleanedInput := strings.TrimSpace(sentence)
 	return cleanedInput, nil
+}
+
+func getRawBytesFromFile(location string) ([]byte, error) {
+	bytes, err := openFile(location)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return bytes, nil
+}
+
+func openFile(location string) ([]byte, error) {
+	bytes, err := os.ReadFile(location)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open %q: %w", location, err)
+	}
+	return bytes, nil
 }
