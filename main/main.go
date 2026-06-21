@@ -8,10 +8,10 @@ import (
 	"os"
 	"strings"
 
-	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/magnet-parser"
 	torrentParser "torrent-client-go/torrent"
 	"torrent-client-go/tracker"
+	"torrent-client-go/types"
 )
 
 func main() {
@@ -62,17 +62,21 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID string) {
 
 	printInputReadErrorIfExists(err)
 
-	dict, infoHash, err := bencodeparser.Decode(bytes)
+	torrent, err := torrentParser.ParseTorrentFile(bytes)
 
 	printInputReadErrorIfExists(err)
+	peersResponse, err := tracker.GetPeers(torrent, peerID)
 
-	torrentStruct, err := torrentParser.MapDataToTorrentFile(dict, infoHash)
-
+	printPeersResponse(peersResponse)
 	printInputReadErrorIfExists(err)
-	url, err := tracker.GetPeers(torrentStruct, peerID)
+}
 
-	fmt.Print(url)
-	printInputReadErrorIfExists(err)
+func printPeersResponse(peersResponse []types.Peer) {
+	fmt.Printf("%v \n ", len(peersResponse))
+	for i := range peersResponse {
+		fmt.Printf("Peer response IP,  %s \n", peersResponse[i].IP)
+		fmt.Printf("Port, %v \n", peersResponse[i].Port)
+	}
 }
 
 func handleIsMagnetLink(reader *bufio.Reader) {

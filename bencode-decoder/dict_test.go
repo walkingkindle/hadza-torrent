@@ -91,8 +91,7 @@ func TestParseDict(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := &bencodeparser.Torrent{Data: tt.bytes}
-			got, got2, gotErr := tr.ParseDict(tt.startPosition)
+			got, got2, gotErr := bencodeparser.ParseDict(tt.startPosition, tt.bytes)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("ParseDict() failed: %v", gotErr)
@@ -109,26 +108,5 @@ func TestParseDict(t *testing.T) {
 				t.Errorf("ParseDict() position = %d, want %d", got2, tt.want2)
 			}
 		})
-	}
-}
-
-// TestParseDictInfoSpan checks that the byte span of the "info" value is
-// recorded on the Torrent, since that span feeds the info-hash in Decode.
-func TestParseDictInfoSpan(t *testing.T) {
-	data := []byte("d4:infod6:lengthi10eee")
-	tr := &bencodeparser.Torrent{Data: data, InfoStart: -1, InfoEnd: -1}
-
-	if _, _, err := tr.ParseDict(0); err != nil {
-		t.Fatalf("ParseDict() failed: %v", err)
-	}
-
-	// The "info" value is the inner dict "d6:lengthi10ee".
-	wantStart := 7
-	wantEnd := 21
-	if tr.InfoStart != wantStart || tr.InfoEnd != wantEnd {
-		t.Errorf("info span = [%d:%d], want [%d:%d]", tr.InfoStart, tr.InfoEnd, wantStart, wantEnd)
-	}
-	if got := string(data[tr.InfoStart:tr.InfoEnd]); got != "d6:lengthi10ee" {
-		t.Errorf("info span bytes = %q, want %q", got, "d6:lengthi10ee")
 	}
 }

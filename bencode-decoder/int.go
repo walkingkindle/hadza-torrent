@@ -5,21 +5,21 @@ import (
 	"strconv"
 )
 
-func (t *Torrent) ParseInt(startPosition int) (int, int, error) {
-	if startPosition < 0 || startPosition >= len(t.Data) {
+func ParseInt(startPosition int, data []byte) (int, int, error) {
+	if startPosition < 0 || startPosition >= len(data) {
 		return 0, 0, errors.New("start position out of bounds")
 	}
-	if t.Data[startPosition] != 'i' {
+	if data[startPosition] != 'i' {
 		return 0, 0, errors.New("invalid type, does not start with correct letter")
 	}
-	rel := indexOf(t.Data[startPosition:], 'e')
+	rel := indexOf(data[startPosition:], 'e')
 
 	if rel == -1 {
 		return 0, 0, errors.New("invalid index of end, malformed error")
 	}
 
 	absolutePositionEnd := startPosition + rel
-	innerBytes := t.Data[startPosition+1 : absolutePositionEnd]
+	innerBytes := data[startPosition+1 : absolutePositionEnd]
 
 	err := validateInnerBytes(innerBytes)
 	if err != nil {

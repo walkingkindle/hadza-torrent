@@ -2,70 +2,41 @@
 package torrentparser
 
 import (
+	"crypto/sha1"
 	"errors"
-	"fmt"
 
+	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/types"
 )
 
-func MapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types.TorrentFile, err error) {
-	torrent.InfoHash = infohash
+func ParseTorrentFile(bytes []byte) (types.TorrentFile, error) {
+	value, valueErr := bencodeparser.Decode(bytes)
+	if valueErr != nil {
+		return types.TorrentFile{}, valueErr
+	}
 
-	info, ok := data["info"].(map[string]any)
+	dict, ok := value.(map[string]any)
 
 	if !ok {
-		return types.TorrentFile{}, errors.New("invalid infohash table")
+		return types.TorrentFile{}, errors.New("not a valid torrent")
 	}
-	name, err := parseStringFromData(info, "name")
+
+	infoStart, infoEnd, err := findInfoSlice(bytes)
 	if err != nil {
 		return types.TorrentFile{}, err
 	}
-	torrent.Name = name
-
-	announce, err := parseStringFromData(data, "announce")
-	if err != nil {
-		return types.TorrentFile{}, err
-	}
-	torrent.Announce = announce
-
-	pieceLength, err := parseIntFromData(info, "piece length")
-	if err != nil {
-		return types.TorrentFile{}, err
+	if bytes[0] != 'd' {
+		return types.TorrentFile{}, errors.New("unsupported or malformed torrent file")
 	}
 
-	torrent.PieceLength = pieceLength
+	infoHash := sha1.Sum(bytes[infoStart:infoEnd])
 
-	length, err := parseIntFromData(info, "length")
+	torrentFile, err := mapDataToTorrentFile(dict, infoHash)
 	if err != nil {
 		return types.TorrentFile{}, err
 	}
 
-	torrent.Length = length
-
-	createdBy, err := parseStringFromData(info, "created by")
-	if err != nil {
-		fmt.Print("Torrent has no created by column, skipping \n")
-	}
-
-	torrent.CreatedBy = createdBy
-
-	piecesStr, ok := info["pieces"].(string)
-
-	if !ok {
-		return types.TorrentFile{}, errors.New("hashes collection invalid")
-	}
-
-	allHashes := []byte(piecesStr)
-
-	hashesCollection, err := gethashesFromtorrent(allHashes)
-	// TODO: Maybe here probably is a better way to have hashesCollection in byte right away, change the parser appropriately
-	if err != nil {
-		return types.TorrentFile{}, err
-	}
-
-	torrent.PieceHashes = hashesCollection
-
-	return torrent, nil
+	return torrentFile, nil
 }
 
 // func printInfoDict(info map[string]any) {
@@ -75,37 +46,3 @@ func MapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 // 		}
 // 	}
 // }
-
-func gethashesFromtorrent(allHashes []byte) (hashesCollection [][20]byte, err error) {
-	if len(allHashes)%20 != 0 {
-		return [][20]byte{}, errors.New("malformed hash collection")
-	}
-	result := [][20]byte{}
-
-	for i := 0; i < len(allHashes); i += 20 {
-		arr := allHashes[i : i+20]
-		result = append(result, [20]byte(arr))
-	}
-
-	return result, nil
-}
-
-func parseIntFromData(data map[string]any, key string) (int, error) {
-	number, ok := data[key].(int)
-
-	if !ok {
-		return 0, errors.New("cannot convert the name property to int, failed")
-	}
-
-	return number, nil
-}
-
-func parseStringFromData(data map[string]any, key string) (string, error) {
-	str, ok := data[key].(string)
-
-	if !ok {
-		return "", fmt.Errorf("cannot convert the property to string, %s, failed", key)
-	}
-
-	return str, nil
-}

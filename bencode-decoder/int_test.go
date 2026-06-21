@@ -104,8 +104,7 @@ func TestParseInt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := &bencodeparser.Torrent{Data: tt.bytesArr}
-			got, got2, gotErr := tr.ParseInt(tt.startPosition)
+			got, got2, gotErr := bencodeparser.ParseInt(tt.startPosition, tt.bytesArr)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("ParseInt() failed: %v", gotErr)

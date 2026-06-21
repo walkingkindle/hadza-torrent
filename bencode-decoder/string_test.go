@@ -99,8 +99,7 @@ func TestParseString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := &bencodeparser.Torrent{Data: tt.bytes}
-			got, got2, gotErr := tr.ParseString(tt.position)
+			got, got2, gotErr := bencodeparser.ParseString(tt.position, tt.bytes)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("ParseString() failed: %v", gotErr)

@@ -92,8 +92,7 @@ func TestParseList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := &bencodeparser.Torrent{Data: tt.bytes}
-			got, got2, gotErr := tr.ParseList(tt.startPosition)
+			got, got2, gotErr := bencodeparser.ParseList(tt.startPosition, tt.bytes)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("ParseList() failed: %v", gotErr)

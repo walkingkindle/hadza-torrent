@@ -66,8 +66,7 @@ func TestDispatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := &bencodeparser.Torrent{Data: tt.bytes}
-			got, got2, gotErr := tr.Dispatch(tt.startPosition)
+			got, got2, gotErr := bencodeparser.Dispatch(tt.startPosition, tt.bytes)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("Dispatch() failed: %v", gotErr)

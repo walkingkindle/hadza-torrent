@@ -5,20 +5,20 @@ import (
 	"strconv"
 )
 
-func (t *Torrent) ParseString(position int) (string, int, error) {
-	if position < 0 || position >= len(t.Data) {
+func ParseString(position int, data []byte) (string, int, error) {
+	if position < 0 || position >= len(data) {
 		return "", 0, errors.New("start position out of bounds")
 	}
-	b := t.Data[position]
+	b := data[position]
 	if !isDigit(b) {
 		return "", 0, errors.New("string must start with a digit")
 	}
-	length, newPosition, err := getLength(position, t.Data)
+	length, newPosition, err := getLength(position, data)
 	if err != nil {
 		return "", -1, err
 	}
 	position = newPosition
-	value, newPosition, err := getStringValue(position, length, t.Data)
+	value, newPosition, err := getStringValue(position, length, data)
 	if err != nil {
 		return "", -1, err
 	}

@@ -2,20 +2,20 @@ package bencodeparser
 
 import "errors"
 
-func (t *Torrent) Dispatch(position int) (any, int, error) {
-	if position < 0 || position >= len(t.Data) {
+func Dispatch(position int, data []byte) (any, int, error) {
+	if position < 0 || position >= len(data) {
 		return nil, 0, errors.New("start position out of bounds")
 	}
-	b := t.Data[position]
+	b := data[position]
 	switch {
 	case b == 'i':
-		return t.ParseInt(position)
+		return ParseInt(position, data)
 	case b == 'd':
-		return t.ParseDict(position)
+		return ParseDict(position, data)
 	case isDigit(b):
-		return t.ParseString(position)
+		return ParseString(position, data)
 	case b == 'l':
-		return t.ParseList(position)
+		return ParseList(position, data)
 	default:
 		return nil, 0, errors.New("torrent malformed")
 	}
