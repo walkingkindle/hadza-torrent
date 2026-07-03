@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"torrent-client-go/magnet-parser"
+	"torrent-client-go/peer"
 	torrentParser "torrent-client-go/torrent"
 	"torrent-client-go/tracker"
 	"torrent-client-go/types"
@@ -34,24 +35,24 @@ func main() {
 	case "1":
 		handleIsMagnetLink(reader)
 	case "2":
-		handleIsTorrentFile(reader, string(peer))
+		handleIsTorrentFile(reader, peer)
 	default:
 		fmt.Println("Invalid input value,bye")
 	}
 }
 
-func generatePeerID() ([]byte, error) {
-	bytes := make([]byte, 20)
+func generatePeerID() ([20]byte, error) {
+	var bytes [20]byte
 
-	_, err := rand.Read(bytes)
+	_, err := rand.Read(bytes[:])
 	if err != nil {
-		return []byte{}, err
+		return [20]byte{}, err
 	}
 
 	return bytes, nil
 }
 
-func handleIsTorrentFile(reader *bufio.Reader, peerID string) {
+func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
 	fmt.Print("Please input the torrent file location. \n")
 	torrentFileLocation, err := readInputFromUser(reader)
 	printInputReadErrorIfExists(err)
@@ -65,7 +66,15 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID string) {
 	torrent, err := torrentParser.ParseTorrentFile(bytes)
 
 	printInputReadErrorIfExists(err)
-	peersResponse, err := tracker.GetPeers(torrent, peerID)
+	peersResponse, err := tracker.GetPeers(torrent, string(peerID[:]))
+
+	handshake := peer.Handshake{InfoHash: torrent.InfoHash, PeerID: peerID}
+
+	serialized, err := handshake.Serialize()
+
+	printInputReadErrorIfExists(err)
+
+	fmt.Print(serialized)
 
 	printPeersResponse(peersResponse)
 	printInputReadErrorIfExists(err)
