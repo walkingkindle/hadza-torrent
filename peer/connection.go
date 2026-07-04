@@ -1,6 +1,13 @@
 // Package peer tries to handshake with the return peers and the connection struct
 package peer
 
-// import "torrent-client-go/types"
+import (
+	"net"
+	"time"
 
-// func Connect(peer types.Peer, infohash string, peerID [20]byte) (*types.PeerConnection, error)
+	"torrent-client-go/types"
+)
+
+func Connect(peer types.Peer, infohash string, peerID [20]byte) (*types.PeerConnection, error) {
+	net.DialTimeout("tcp", peer.IP.String(), 2*time.Second)
+}
