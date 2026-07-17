@@ -5,39 +5,39 @@ import (
 	"errors"
 	"net"
 
-	"torrent-client-go/types"
+	"torrent-client-go/peer"
 )
 
-func parseBodyIntoPeerStruct(result any) ([]types.Peer, error) {
+func parseBodyIntoPeerStruct(result any) ([]peer.Peer, error) {
 	mapVal, ok := result.(map[string]any)
 
 	if !ok {
-		return []types.Peer{}, errors.New("response not right, not a peer response")
+		return []peer.Peer{}, errors.New("response not right, not a peer response")
 	}
 
 	if mapVal["peers"] == nil {
-		return []types.Peer{}, errors.New("unsupported peer response")
+		return []peer.Peer{}, errors.New("unsupported peer response")
 	}
 
 	peerBytesStr, ok := mapVal["peers"].(string)
 
 	if !ok {
-		return []types.Peer{}, errors.New("response not peer response")
+		return []peer.Peer{}, errors.New("response not peer response")
 	}
 
 	return mapPeerBytesToPeer([]byte(peerBytesStr))
 }
 
-func mapPeerBytesToPeer(peerBytes []byte) ([]types.Peer, error) {
+func mapPeerBytesToPeer(peerBytes []byte) ([]peer.Peer, error) {
 	const peerSize = 6
 
 	numPeers := len(peerBytes) / peerSize
 
 	if len(peerBytes)%peerSize != 0 {
-		return []types.Peer{}, errors.New("received malformed peers")
+		return []peer.Peer{}, errors.New("received malformed peers")
 	}
 
-	peers := make([]types.Peer, numPeers)
+	peers := make([]peer.Peer, numPeers)
 
 	for i := range numPeers {
 		offset := i * peerSize

@@ -68,19 +68,36 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
 	printInputReadErrorIfExists(err)
 	peersResponse, err := tracker.GetPeers(torrent, string(peerID[:]))
 
-	handshake := peer.Handshake{InfoHash: torrent.InfoHash, PeerID: peerID}
-
-	serialized, err := handshake.Serialize()
-
 	printInputReadErrorIfExists(err)
 
-	fmt.Print(serialized)
+	conn, err := connectToPeer(peersResponse, torrent, peerID)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return
+	}
+
+	fmt.Printf("Connected with a peer \n")
+	fmt.Printf(conn.Peer.IP.String())
 
 	printPeersResponse(peersResponse)
 	printInputReadErrorIfExists(err)
 }
 
-func printPeersResponse(peersResponse []types.Peer) {
+func connectToPeer(peersResponse []peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection peer.PeerConnection, err error) {
+	for i := 0; i < len(peersResponse); i++ {
+		selectedPeer := peersResponse[i]
+
+		conn, err := peer.Connect(selectedPeer, torrent.InfoHash, peerID)
+		if err != nil {
+			continue
+		}
+
+		return conn, nil
+	}
+	return peer.PeerConnection{}, errors.New("could not establish connection with any of the peers.")
+}
+
+func printPeersResponse(peersResponse []peer.Peer) {
 	fmt.Printf("%v \n ", len(peersResponse))
 	for i := range peersResponse {
 		fmt.Printf("Peer response IP,  %s \n", peersResponse[i].IP)
