@@ -2,12 +2,61 @@
 package peer
 
 import (
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
 	"strconv"
 	"time"
 )
+
+func (m *Message) Serialize() []byte {
+	if m == nil {
+		return make([]byte, 4)
+	}
+
+	length := uint32(len(m.Payload) + 1)
+
+	buf := make([]byte, 4+length)
+
+	binary.BigEndian.PutUint32(buf[0:4], length)
+
+	buf[4] = byte(m.ID)
+	copy(buf[5:], m.Payload)
+
+	return buf
+}
+
+func (pc *PeerConnection) ReadMessage() (*Message, error) {
+	lengthBytes := make([]byte, 4)
+
+	var length uint32
+	for {
+		_, err := io.ReadFull(pc.Conn, lengthBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		length = binary.BigEndian.Uint32(lengthBytes)
+
+		if length != 0 {
+			break
+		}
+	}
+
+	if length > 17000 {
+		return nil, errors.New("malformed bytes")
+	}
+
+	payload := make([]byte, length)
+
+	_, err := io.ReadFull(pc.Conn, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Message{ID: payload[0], Payload: payload[1:]}, nil
+}
 
 func Connect(peer Peer, infohash [20]byte, peerID [20]byte) (PeerConnection, error) {
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(peer.IP.String(), strconv.Itoa(int(peer.Port))), 2*time.Second)

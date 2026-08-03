@@ -77,10 +77,14 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
 	}
 
 	fmt.Printf("Connected with a peer \n")
-	fmt.Printf(conn.Peer.IP.String())
 
-	printPeersResponse(peersResponse)
-	printInputReadErrorIfExists(err)
+	message, err := conn.ReadMessage()
+	if err != nil {
+		fmt.Printf(err.Error())
+		return
+	}
+
+	fmt.Printf("%d\n", message.ID)
 }
 
 func connectToPeer(peersResponse []peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection peer.PeerConnection, err error) {

@@ -7,4 +7,6 @@ type PeerConnection struct {
 	Peer     Peer
 	InfoHash [20]byte
 	PeerID   [20]byte
+	Choked   bool
+	Bitfield []byte
 }
