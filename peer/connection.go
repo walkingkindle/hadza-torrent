@@ -27,6 +27,34 @@ func (m *Message) Serialize() []byte {
 	return buf
 }
 
+// HandleMessage applies msg to the connection state. Only a piece message
+// (ID 7) yields a block; every other message returns the zero PieceBlock.
+func (pc *PeerConnection) HandleMessage(msg *Message) (PieceBlock, error) {
+	switch msg.ID {
+	case 0:
+		pc.Choked = true
+		return PieceBlock{}, nil
+	case 1:
+		pc.Choked = false
+		return PieceBlock{}, nil
+	case 4:
+		// index := binary.BigEndian.Uint32(msg.Payload)
+		// pc.setPiece(index)
+		return PieceBlock{}, nil
+
+	case 5:
+		pc.Bitfield = msg.Payload
+		return PieceBlock{}, nil
+	case 7:
+		return ParsePiece(msg.Payload)
+	}
+	return PieceBlock{}, nil
+}
+
+func (pc *PeerConnection) setPiece(index uint32) {
+	panic("unimplemented")
+}
+
 func (pc *PeerConnection) ReadMessage() (*Message, error) {
 	lengthBytes := make([]byte, 4)
 
