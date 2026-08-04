@@ -11,9 +11,9 @@ type PieceBlock struct {
 	Data  []byte
 }
 
-func ParsePiece(payload []byte) (PieceBlock, error) {
+func ParsePiece(payload []byte) (*PieceBlock, error) {
 	if len(payload) < 8 {
-		return PieceBlock{}, errors.New("malformed payload,returning")
+		return nil, errors.New("malformed payload,returning")
 	}
 
 	index := binary.BigEndian.Uint32(payload[0:4])
@@ -22,5 +22,5 @@ func ParsePiece(payload []byte) (PieceBlock, error) {
 
 	data := payload[8:]
 
-	return PieceBlock{Index: index, Begin: begin, Data: data}, nil
+	return &PieceBlock{Index: index, Begin: begin, Data: data}, nil
 }
