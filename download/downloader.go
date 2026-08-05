@@ -1,9 +1,12 @@
+// download package handles the download feed and writes to file
 package download
 
 import (
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
+	"os"
+	"time"
 
 	"torrent-client-go/peer"
 	"torrent-client-go/types"
@@ -17,11 +20,22 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
 		if err != nil {
 			return err
 		}
-		conn.HandleMessage(msg)
+		err = conn.HandleMessage(msg)
 	}
+
+	file, err := os.Create(torrent.Name)
+	if err != nil {
+		return errors.New("system error could not create the file")
+	}
+
+	defer file.Close()
 
 	for i := 0; i < len(torrent.PieceHashes); i++ {
 		piece, err := downloadPiece(i, torrent, conn)
+		if err != nil {
+			return err
+		}
+		_, err = file.WriteAt(piece, int64(i*torrent.PieceLength))
 		if err != nil {
 			return err
 		}
@@ -31,15 +45,18 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
 }
 
 func downloadPiece(i int, torrent types.TorrentFile, conn *peer.PeerConnection) ([]byte, error) {
-	buf := make([]byte, torrent.PieceLength)
+	pieceLength := getPieceLength(i, torrent)
+	buf := make([]byte, pieceLength)
 
 	filled := 0
 
-	for filled < torrent.PieceLength {
-		sendRequest(i, filled, torrent.PieceLength, conn) // handle this error
-
+	for filled < pieceLength {
+		err := sendRequest(i, filled, pieceLength, conn) // handle this error
+		if err != nil {
+			return nil, err
+		}
 		for {
-
+			conn.Conn.SetDeadline(time.Now().Add(6))
 			mes, err := conn.ReadMessage()
 			if err != nil {
 				return nil, err
@@ -66,22 +83,40 @@ func downloadPiece(i int, torrent types.TorrentFile, conn *peer.PeerConnection) 
 	return buf, nil
 }
 
-func sendRequest(i int, filled int, pieceLength int, conn *peer.PeerConnection) {
-	msg := peer.Message{ID: 6, Payload: buildPayload(i, filled)}
+func getPieceLength(i int, torrent types.TorrentFile) int {
+	pieceStart := i * torrent.PieceLength
+
+	pieceEnd := pieceStart + torrent.PieceLength
+
+	if pieceEnd > torrent.Length {
+		pieceEnd = torrent.Length
+	}
+	thisPieceLength := pieceEnd - pieceStart
+
+	return thisPieceLength
+}
+
+func sendRequest(i int, filled int, pieceLength int, conn *peer.PeerConnection) error {
+	msg := peer.Message{ID: 6, Payload: buildPayload(i, filled, pieceLength)}
 
 	serialze := msg.Serialize()
 
-	conn.Conn.Write(serialze)
+	_, err := conn.Conn.Write(serialze)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func buildPayload(i int, filled int) []byte {
+func buildPayload(i int, filled int, pieceLength int) []byte {
 	pload := make([]byte, 12)
 
 	binary.BigEndian.PutUint32(pload[0:4], uint32(i))
 
 	binary.BigEndian.PutUint32(pload[4:8], uint32(filled))
 
-	binary.BigEndian.PutUint32(pload[8:12], uint32(stdPieceSize))
+	binary.BigEndian.PutUint32(pload[8:12], uint32(min(stdPieceSize, pieceLength-filled)))
 
 	return pload
 }

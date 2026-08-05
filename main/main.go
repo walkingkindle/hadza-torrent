@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"torrent-client-go/download"
 	"torrent-client-go/magnet-parser"
 	"torrent-client-go/peer"
 	torrentParser "torrent-client-go/torrent"
@@ -72,15 +73,18 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
 
 	conn, err := connectToPeer(peersResponse, torrent, peerID)
 	if err != nil {
-		fmt.Printf(err.Error())
+		fmt.Printf("Error, %s", err.Error())
 		return
 	}
 
-	Download(conn, torrent)
+	err = download.Download(conn, torrent)
+	if err != nil {
+		fmt.Printf("Error, %s", err.Error())
+	}
 }
 
-func connectToPeer(peersResponse []peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection peer.PeerConnection, err error) {
-	for i := 0; i < len(peersResponse); i++ {
+func connectToPeer(peersResponse []peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection *peer.PeerConnection, err error) {
+	for i := range peersResponse {
 		selectedPeer := peersResponse[i]
 
 		conn, err := peer.Connect(selectedPeer, torrent.InfoHash, peerID)
@@ -88,17 +92,9 @@ func connectToPeer(peersResponse []peer.Peer, torrent types.TorrentFile, peerID 
 			continue
 		}
 
-		return conn, nil
+		return &conn, nil
 	}
-	return peer.PeerConnection{}, errors.New("could not establish connection with any of the peers.")
-}
-
-func printPeersResponse(peersResponse []peer.Peer) {
-	fmt.Printf("%v \n ", len(peersResponse))
-	for i := range peersResponse {
-		fmt.Printf("Peer response IP,  %s \n", peersResponse[i].IP)
-		fmt.Printf("Port, %v \n", peersResponse[i].Port)
-	}
+	return nil, errors.New("could not establish connection with any of the peers")
 }
 
 func handleIsMagnetLink(reader *bufio.Reader) {

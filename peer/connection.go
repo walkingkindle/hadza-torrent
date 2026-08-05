@@ -46,7 +46,11 @@ func (pc *PeerConnection) HandleMessage(msg *Message) (*PieceBlock, error) {
 		pc.Bitfield = msg.Payload
 		return nil, nil
 	case 7:
-		return ParsePiece(msg.Payload), nil
+		piece, err := ParsePiece(msg.Payload)
+		if err != nil {
+			return nil, err
+		}
+		return piece, nil
 	}
 	return nil, nil
 }
