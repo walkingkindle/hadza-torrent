@@ -79,7 +79,7 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
 
 	err = download.Download(conn, torrent)
 	if err != nil {
-		fmt.Printf("Error, %s", err.Error())
+		fmt.Printf("Error while downloading, %s", err.Error())
 	}
 }
 

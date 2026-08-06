@@ -1,10 +1,11 @@
-// download package handles the download feed and writes to file
+// Package download handles the download feed and writes to file
 package download
 
 import (
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -15,14 +16,10 @@ import (
 const stdPieceSize = 16384 // 16kib
 
 func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
-	for conn.Choked {
-		msg, err := conn.ReadMessage()
-		if err != nil {
-			return err
-		}
-		err = conn.HandleMessage(msg)
+	err := conn.WaitForUnchoke()
+	if err != nil {
+		return err
 	}
-
 	file, err := os.Create(torrent.Name)
 	if err != nil {
 		return errors.New("system error could not create the file")
@@ -35,6 +32,8 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
 		if err != nil {
 			return err
 		}
+
+		fmt.Printf("Got piece number %d!", i)
 		_, err = file.WriteAt(piece, int64(i*torrent.PieceLength))
 		if err != nil {
 			return err
@@ -51,17 +50,31 @@ func downloadPiece(i int, torrent types.TorrentFile, conn *peer.PeerConnection) 
 	filled := 0
 
 	for filled < pieceLength {
+		for conn.Choked {
+			msg, err := conn.ReadMessage()
+			if err != nil {
+				return nil, err
+			}
+			_, err = conn.HandleMessage(msg)
+			if err != nil {
+				return nil, err
+			}
+
+		}
 		err := sendRequest(i, filled, pieceLength, conn) // handle this error
 		if err != nil {
 			return nil, err
 		}
 		for {
-			conn.Conn.SetDeadline(time.Now().Add(6))
-			mes, err := conn.ReadMessage()
+			err = conn.Conn.SetDeadline(time.Now().Add(20 * time.Second))
 			if err != nil {
 				return nil, err
 			}
-			block, err := conn.HandleMessage(mes)
+			msg, err := conn.ReadMessage()
+			if err != nil {
+				return nil, err
+			}
+			block, err := conn.HandleMessage(msg)
 			if err != nil {
 				return nil, err
 			}

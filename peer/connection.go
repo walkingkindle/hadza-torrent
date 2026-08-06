@@ -27,6 +27,20 @@ func (m *Message) Serialize() []byte {
 	return buf
 }
 
+func (conn *PeerConnection) WaitForUnchoke() error {
+	for conn.Choked {
+		msg, err := conn.ReadMessage()
+		if err != nil {
+			return err
+		}
+		_, err = conn.HandleMessage(msg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // HandleMessage applies msg to the connection state. Only a piece message
 // (ID 7) yields a block; every other message returns the zero PieceBlock.
 func (pc *PeerConnection) HandleMessage(msg *Message) (*PieceBlock, error) {
