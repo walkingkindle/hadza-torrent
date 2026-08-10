@@ -106,8 +106,8 @@ func TestParsePieceErrors(t *testing.T) {
 			if err == nil {
 				t.Fatalf("ParsePiece(%s) = nil error, want error", tt.name)
 			}
-			if got.Index != 0 || got.Begin != 0 || got.Data != nil {
-				t.Errorf("ParsePiece(%s) = %+v, want zero PieceBlock", tt.name, got)
+			if got != nil {
+				t.Errorf("ParsePiece(%s) = %+v, want nil PieceBlock", tt.name, got)
 			}
 		})
 	}

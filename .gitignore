@@ -1,2 +1,6 @@
 main/.claude/settings.local.json
 torrent-file-location.txt
+.debug-input.txt
+__debug_bin*
+*.iso
+probe/

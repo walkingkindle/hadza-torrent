@@ -4,11 +4,28 @@ package peer
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strconv"
 	"time"
 )
+
+// addr identifies this peer in log lines.
+func (pc *PeerConnection) addr() string {
+	return net.JoinHostPort(pc.Peer.IP.String(), strconv.Itoa(int(pc.Peer.Port)))
+}
+
+// Send writes a message to the peer and logs it, so that every byte leaving
+// the client is visible at debug level.
+func (pc *PeerConnection) Send(msg Message) error {
+	slog.Debug("-> send", "peer", pc.addr(), "msg", msg.Name(), "payload", len(msg.Payload))
+
+	_, err := pc.Conn.Write(msg.Serialize())
+
+	return err
+}
 
 func (m *Message) Serialize() []byte {
 	if m == nil {
@@ -42,24 +59,30 @@ func (conn *PeerConnection) WaitForUnchoke() error {
 }
 
 // HandleMessage applies msg to the connection state. Only a piece message
-// (ID 7) yields a block; every other message returns the zero PieceBlock.
+// yields a block; every other message returns nil.
 func (pc *PeerConnection) HandleMessage(msg *Message) (*PieceBlock, error) {
 	switch msg.ID {
-	case 0:
+	case MsgChoke:
 		pc.Choked = true
+		slog.Info("peer choked us", "peer", pc.addr())
 		return nil, nil
-	case 1:
+	case MsgUnchoke:
 		pc.Choked = false
+		slog.Info("peer unchoked us", "peer", pc.addr())
 		return nil, nil
-	case 4:
-		// index := binary.BigEndian.Uint32(msg.Payload)
-		// pc.setPiece(index)
+	case MsgHave:
+		if len(msg.Payload) < 4 {
+			return nil, errors.New("malformed have message, want a 4 byte piece index")
+		}
+		index := binary.BigEndian.Uint32(msg.Payload)
+		pc.setPiece(index)
+		slog.Info("peer advertised a piece", "peer", pc.addr(), "piece", index, "total_known", pc.PieceCount())
 		return nil, nil
-
-	case 5:
+	case MsgBitfield:
 		pc.Bitfield = msg.Payload
+		slog.Info("peer sent bitfield", "peer", pc.addr(), "bytes", len(msg.Payload), "pieces", pc.PieceCount())
 		return nil, nil
-	case 7:
+	case MsgPiece:
 		piece, err := ParsePiece(msg.Payload)
 		if err != nil {
 			return nil, err
@@ -69,8 +92,51 @@ func (pc *PeerConnection) HandleMessage(msg *Message) (*PieceBlock, error) {
 	return nil, nil
 }
 
-func (pc *PeerConnection) setPiece(index uint32) {
-	panic("unimplemented")
+// setPiece marks piece i as available on this peer. A peer is free to send
+// have messages without ever having sent a bitfield, so grow the bitfield to
+// fit rather than assuming one arrived first.
+func (pc *PeerConnection) setPiece(i uint32) {
+	byteIndex := i / 8
+
+	bitOffset := 7 - (i % 8)
+
+	if int(byteIndex) >= len(pc.Bitfield) {
+		grown := make([]byte, byteIndex+1)
+		copy(grown, pc.Bitfield)
+		pc.Bitfield = grown
+	}
+
+	pc.Bitfield[byteIndex] |= 1 << bitOffset
+}
+
+// HasPiece reports whether the peer has advertised piece i, via either its
+// bitfield or a have message. Requesting a piece a peer does not have is a
+// protocol violation and most clients respond by dropping the connection.
+func (pc *PeerConnection) HasPiece(i int) bool {
+	byteIndex := i / 8
+
+	bitOffset := 7 - (i % 8)
+
+	if i < 0 || byteIndex >= len(pc.Bitfield) {
+		return false
+	}
+
+	return pc.Bitfield[byteIndex]>>bitOffset&1 == 1
+}
+
+// PieceCount is how many pieces the peer has advertised so far.
+func (pc *PeerConnection) PieceCount() int {
+	count := 0
+
+	for _, b := range pc.Bitfield {
+		for bit := 0; bit < 8; bit++ {
+			if b>>(7-bit)&1 == 1 {
+				count++
+			}
+		}
+	}
+
+	return count
 }
 
 func (pc *PeerConnection) ReadMessage() (*Message, error) {
@@ -88,6 +154,8 @@ func (pc *PeerConnection) ReadMessage() (*Message, error) {
 		if length != 0 {
 			break
 		}
+
+		slog.Debug("<- recv", "peer", pc.addr(), "msg", "keep-alive")
 	}
 
 	if length > 17000 {
@@ -101,12 +169,21 @@ func (pc *PeerConnection) ReadMessage() (*Message, error) {
 		return nil, err
 	}
 
-	return &Message{ID: payload[0], Payload: payload[1:]}, nil
+	msg := &Message{ID: payload[0], Payload: payload[1:]}
+
+	slog.Debug("<- recv", "peer", pc.addr(), "msg", msg.Name(), "payload", len(msg.Payload))
+
+	return msg, nil
 }
 
 func Connect(peer Peer, infohash [20]byte, peerID [20]byte) (PeerConnection, error) {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(peer.IP.String(), strconv.Itoa(int(peer.Port))), 2*time.Second)
+	addr := net.JoinHostPort(peer.IP.String(), strconv.Itoa(int(peer.Port)))
+
+	slog.Debug("dialing peer", "peer", addr)
+
+	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
 	if err != nil {
+		slog.Debug("dial failed", "peer", addr, "err", err)
 		return PeerConnection{}, err
 	}
 
@@ -142,12 +219,33 @@ func Connect(peer Peer, infohash [20]byte, peerID [20]byte) (PeerConnection, err
 		return PeerConnection{}, errors.New("info hash differs from the original that was sent, closing connection")
 	}
 
+	slog.Info("handshake accepted", "peer", addr, "peer_id", fmt.Sprintf("%q", trimPeerID(parsed.PeerID)))
+
 	connection := PeerConnection{
 		Conn:     conn,
 		Peer:     peer,
 		InfoHash: infohash,
 		PeerID:   peerID,
+		Choked:   true,
+	}
+
+	// A peer will not unchoke us until we say we want something from it.
+	if err = connection.Send(Message{ID: MsgInterested}); err != nil {
+		_ = conn.Close()
+		return PeerConnection{}, err
 	}
 
 	return connection, nil
+}
+
+// trimPeerID keeps the printable client identifier most peers put at the front
+// of their peer id (for example "-qB5000-"), dropping the random tail.
+func trimPeerID(id [20]byte) string {
+	for i, b := range id {
+		if b < 0x20 || b > 0x7e {
+			return string(id[:i])
+		}
+	}
+
+	return string(id[:])
 }

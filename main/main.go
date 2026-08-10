@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"torrent-client-go/download"
 	"torrent-client-go/magnet-parser"
@@ -17,6 +19,8 @@ import (
 )
 
 func main() {
+	setupLogging()
+
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Print("Magnet or torrent file. Send 1 or 2. \n")
@@ -40,6 +44,34 @@ func main() {
 	default:
 		fmt.Println("Invalid input value,bye")
 	}
+}
+
+// setupLogging sends logs to stderr so they stay separate from the prompts on
+// stdout. TORRENT_LOG=debug adds the per-message wire trace: every message
+// sent and received, every block, every request.
+func setupLogging() {
+	level := slog.LevelInfo
+
+	switch strings.ToLower(os.Getenv("TORRENT_LOG")) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: level,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				a.Value = slog.StringValue(time.Now().Format("15:04:05.000"))
+			}
+			return a
+		},
+	})
+
+	slog.SetDefault(slog.New(handler))
 }
 
 func generatePeerID() ([20]byte, error) {

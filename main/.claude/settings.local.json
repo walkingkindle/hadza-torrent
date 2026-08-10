@@ -4,7 +4,8 @@
       "Read(//home/aleksa/Projects/torrent-client-go/**)",
       "Bash(go build *)",
       "Bash(go vet *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(go test *)"
     ]
   }
 }
