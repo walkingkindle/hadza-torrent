@@ -16,7 +16,7 @@ import (
 
 const stdPieceSize = 16384 // 16kib
 
-func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
+func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, done []bool) error {
 	// Connect leaves a short handshake deadline on the socket; being unchoked
 	// can take considerably longer than that.
 	conn.Conn.SetDeadline(time.Now().Add(60 * time.Second))
@@ -25,16 +25,8 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(torrent.Name)
-	if err != nil {
-		return errors.New("system error could not create the file")
-	}
 
-	defer file.Close()
-
-	if err := file.Truncate(int64(torrent.Length)); err != nil {
-		return err
-	}
+	defer conn.Conn.Close()
 
 	slog.Info("starting download",
 		"file", torrent.Name,
@@ -42,7 +34,6 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
 		"pieces", len(torrent.PieceHashes),
 		"piece_length", torrent.PieceLength)
 
-	done := make([]bool, len(torrent.PieceHashes))
 	completed := 0
 	started := time.Now()
 
@@ -81,11 +72,21 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile) error {
 			"of", len(done),
 			"bytes", len(piece),
 			"elapsed", time.Since(started).Round(time.Second))
+
+		if err = conn.Send(peer.Message{ID: peer.MsgHave, Payload: buildHavePayload(i)}); err != nil {
+			return err
+		}
 	}
 
 	slog.Info("download complete", "file", torrent.Name, "elapsed", time.Since(started).Round(time.Second))
 
 	return nil
+}
+
+func buildHavePayload(pieceIndex int) []byte {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, uint32(pieceIndex))
+	return buf
 }
 
 // nextWantedPiece returns the lowest indexed piece we still need that the peer

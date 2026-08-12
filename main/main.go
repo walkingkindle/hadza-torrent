@@ -85,7 +85,7 @@ func generatePeerID() ([20]byte, error) {
 	return bytes, nil
 }
 
-func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
+func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) error {
 	fmt.Print("Please input the torrent file location. \n")
 	torrentFileLocation, err := readInputFromUser(reader)
 	printInputReadErrorIfExists(err)
@@ -98,35 +98,52 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) {
 
 	torrent, err := torrentParser.ParseTorrentFile(bytes)
 
-	printInputReadErrorIfExists(err)
-	peersResponse, err := tracker.GetPeers(torrent, string(peerID[:]))
-
-	printInputReadErrorIfExists(err)
-
-	conn, err := connectToPeer(peersResponse, torrent, peerID)
+	file, err := createFile(torrent)
 	if err != nil {
-		fmt.Printf("Error, %s", err.Error())
-		return
+		return err
 	}
+	defer file.Close()
+	done := make([]bool, len(torrent.PieceHashes))
+	printInputReadErrorIfExists(err)
 
-	err = download.Download(conn, torrent)
-	if err != nil {
-		fmt.Printf("Error while downloading, %s", err.Error())
-	}
-}
+	peers, err := tracker.GetPeers(torrent, string(peerID[:]))
+	printInputReadErrorIfExists(err)
 
-func connectToPeer(peersResponse []peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection *peer.PeerConnection, err error) {
-	for i := range peersResponse {
-		selectedPeer := peersResponse[i]
-
-		conn, err := peer.Connect(selectedPeer, torrent.InfoHash, peerID)
+	for _, peer := range peers {
+		conn, err := connectToPeer(peer, torrent, peerID)
 		if err != nil {
+			fmt.Printf("could not connect to this peer, %s", err)
 			continue
 		}
-
-		return &conn, nil
+		err = download.Download(conn, torrent, file, done)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Error while downloading, %s, retrying", err.Error())
 	}
-	return nil, errors.New("could not establish connection with any of the peers")
+
+	return nil
+}
+
+func createFile(torrent types.TorrentFile) (*os.File, error) {
+	file, err := os.Create(torrent.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := file.Truncate(int64(torrent.Length)); err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+func connectToPeer(selectedPeer peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection *peer.PeerConnection, err error) {
+	conn, err := peer.Connect(selectedPeer, torrent.InfoHash, peerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &conn, nil
 }
 
 func handleIsMagnetLink(reader *bufio.Reader) {

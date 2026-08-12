@@ -154,7 +154,6 @@ func (pc *PeerConnection) ReadMessage() (*Message, error) {
 		if length != 0 {
 			break
 		}
-
 		slog.Debug("<- recv", "peer", pc.addr(), "msg", "keep-alive")
 	}
 
