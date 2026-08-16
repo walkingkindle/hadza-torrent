@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"torrent-client-go/helpers"
 	"torrent-client-go/peer"
 	"torrent-client-go/types"
 )
@@ -34,14 +35,13 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 		"pieces", len(torrent.PieceHashes),
 		"piece_length", torrent.PieceLength)
 
-	completed := 0
 	started := time.Now()
 
-	for completed < len(done) {
+	for helpers.CountTrue(done) < len(done) {
 		i, ok := nextWantedPiece(conn, done)
 		if !ok {
 			slog.Info("waiting for the peer to offer a piece we still need",
-				"peer", conn.Peer.IP, "advertised", conn.PieceCount(), "have", completed)
+				"peer", conn.Peer.IP, "advertised", conn.PieceCount(), "have", helpers.CountTrue(done))
 
 			// Nothing on offer that we still need. A peer's availability grows
 			// over the life of the connection -- a superseeding seed sends no
@@ -49,7 +49,7 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 			// the next advertisement instead of giving up on the whole file.
 			if err := awaitAdvertisement(conn); err != nil {
 				return fmt.Errorf("got %d of %d pieces from %s before it stopped offering any: %w",
-					completed, len(done), conn.Peer.IP, err)
+					helpers.CountTrue(done), len(done), conn.Peer.IP, err)
 			}
 			continue
 		}
@@ -64,11 +64,10 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 		}
 
 		done[i] = true
-		completed++
 
 		slog.Info("piece verified and written",
 			"piece", i,
-			"have", completed,
+			"have", helpers.CountTrue(done),
 			"of", len(done),
 			"bytes", len(piece),
 			"elapsed", time.Since(started).Round(time.Second))

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go/v5"
+
 	"torrent-client-go/download"
 	"torrent-client-go/magnet-parser"
 	"torrent-client-go/peer"
@@ -98,6 +100,10 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) error {
 
 	torrent, err := torrentParser.ParseTorrentFile(bytes)
 
+	if err != nil {
+		return err
+	}
+
 	file, err := createFile(torrent)
 	if err != nil {
 		return err
@@ -115,7 +121,12 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) error {
 			fmt.Printf("could not connect to this peer, %s", err)
 			continue
 		}
-		err = download.Download(conn, torrent, file, done)
+		err = retry.New(
+			retry.Attempts(5),
+			retry.DelayType(retry.RandomDelay),
+		).Do(func() error {
+			return download.Download(conn, torrent, file, done)
+		})
 		if err == nil {
 			break
 		}
