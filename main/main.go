@@ -8,11 +8,13 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/avast/retry-go/v5"
 
 	"torrent-client-go/download"
+	"torrent-client-go/helpers"
 	"torrent-client-go/magnet-parser"
 	"torrent-client-go/peer"
 	torrentParser "torrent-client-go/torrent"
@@ -99,7 +101,6 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) error {
 	printInputReadErrorIfExists(err)
 
 	torrent, err := torrentParser.ParseTorrentFile(bytes)
-
 	if err != nil {
 		return err
 	}
@@ -109,35 +110,93 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) error {
 		return err
 	}
 	defer file.Close()
+
 	done := make([]bool, len(torrent.PieceHashes))
-	printInputReadErrorIfExists(err)
-
-	peers, err := tracker.GetPeers(torrent, string(peerID[:]))
-	printInputReadErrorIfExists(err)
-
-	for _, peer := range peers {
-		conn, err := connectToPeer(peer, torrent, peerID)
-		if err != nil {
-			fmt.Printf("could not connect to this peer, %s", err)
-			continue
-		}
-		err = retry.New(
-			retry.Attempts(5),
-			retry.DelayType(retry.RandomDelay),
-		).Do(func() error {
-			return download.Download(conn, torrent, file, done)
-		})
-		if err == nil {
-			break
-		}
-		fmt.Printf("Error while downloading, %s, retrying", err.Error())
-	}
+	startDownloadLoop(torrent, peerID, done, file)
 
 	return nil
 }
 
+func startDownloadLoop(torrent types.TorrentFile, peerID [20]byte, done []bool, file *os.File) {
+	for {
+		trackersResponse, err := tracker.GetPeers(torrent, string(peerID[:]), "0", "0")
+		printInputReadErrorIfExists(err)
+		if err != nil {
+			continue
+		}
+
+		timer := time.NewTimer(time.Second * time.Duration(trackersResponse.Interval))
+
+		timedOut := false
+
+		for _, peer := range trackersResponse.Peers {
+			// Check if timer has fired before starting work on a new peer
+			select {
+			case <-timer.C:
+				timedOut = true
+				break // Break inner peer loop
+			default:
+				// Timer not up yet, continue with peer
+			}
+
+			if timedOut {
+				break
+			}
+
+			noProgress := 0
+			_ = retry.New(
+				retry.Attempts(0),
+				retry.Delay(2*time.Second),
+				retry.MaxDelay(2*time.Minute),
+				retry.LastErrorOnly(true),
+				retry.RetryIf(func(err error) bool {
+					if errors.Is(err, download.ErrLocal) {
+						return false
+					}
+					return noProgress < 5
+				}),
+			).Do(func() error {
+				conn, err := connectToPeer(peer, torrent, peerID)
+				if isConnectionRefused(err) {
+					noProgress++
+				}
+				before := helpers.CountTrue(done)
+				err = download.Download(conn, torrent, file, done)
+
+				if before == helpers.CountTrue(done) {
+					noProgress++
+				} else {
+					noProgress = 0
+				}
+
+				return err
+			})
+		}
+
+		// 3. Cleanup timer
+		if !timer.Stop() && !timedOut {
+			<-timer.C // Drain channel if timer fired but we didn't catch it in the select above
+		}
+
+		// 4. If we timed out, loop again to re-announce
+		if timedOut {
+			fmt.Println("Interval reached, re-announcing...")
+			continue // Restart the outer loop to call GetPeers again
+		}
+		break
+	}
+}
+
+func MadeProgress(progress, done []bool) bool {
+	return helpers.CountTrue(done) > helpers.CountTrue(progress)
+}
+
+func isConnectionRefused(err error) bool {
+	return errors.Is(err, syscall.ECONNREFUSED)
+}
+
 func createFile(torrent types.TorrentFile) (*os.File, error) {
-	file, err := os.Create(torrent.Name)
+	file, err := os.OpenFile(torrent.Name, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, err
 	}

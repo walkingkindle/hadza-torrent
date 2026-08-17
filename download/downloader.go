@@ -16,6 +16,7 @@ import (
 )
 
 const stdPieceSize = 16384 // 16kib
+var ErrLocal = errors.New("local failure")
 
 func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, done []bool) error {
 	// Connect leaves a short handshake deadline on the socket; being unchoked
@@ -60,7 +61,7 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 		}
 
 		if _, err := file.WriteAt(piece, int64(i*torrent.PieceLength)); err != nil {
-			return err
+			return fmt.Errorf("writing piece %d: %w: %w", i, ErrLocal, err)
 		}
 
 		done[i] = true

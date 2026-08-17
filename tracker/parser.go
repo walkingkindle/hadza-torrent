@@ -9,15 +9,15 @@ import (
 	"torrent-client-go/peer"
 )
 
-func parseBodyIntoPeerStruct(result any) ([]peer.Peer, error) {
+func parseBodyIntoPeerStruct(result any) (peer.TrackersResponse, error) {
 	mapVal, ok := result.(map[string]any)
 
 	if !ok {
-		return []peer.Peer{}, errors.New("response not right, not a peer response")
+		return peer.TrackersResponse{}, errors.New("response not right, not a peer response")
 	}
 
 	if reason, failed := mapVal["failure reason"]; failed {
-		return []peer.Peer{}, errors.New("tracker refused the announce: " + toString(reason))
+		return peer.TrackersResponse{}, errors.New("tracker refused the announce: " + toString(reason))
 	}
 
 	// The swarm counts are worth surfacing: they are how you tell "nobody is
@@ -27,17 +27,34 @@ func parseBodyIntoPeerStruct(result any) ([]peer.Peer, error) {
 		"leechers", mapVal["incomplete"],
 		"reannounce_interval_s", mapVal["interval"])
 
-	if mapVal["peers"] == nil {
-		return []peer.Peer{}, errors.New("unsupported peer response")
+	if mapVal["peers"] == nil || mapVal["interval"] == nil {
+		return peer.TrackersResponse{}, errors.New("unsupported peer response")
 	}
 
+	peerString, interval, err := assertTrackerResponse(mapVal)
+	if err != nil {
+		return peer.TrackersResponse{}, err
+	}
+
+	peers, err := mapPeerBytesToPeer([]byte(peerString))
+	if err != nil {
+		return peer.TrackersResponse{}, err
+	}
+	return peer.TrackersResponse{Interval: interval, Peers: peers}, nil
+}
+
+func assertTrackerResponse(mapVal map[string]any) (string, int, error) {
 	peerBytesStr, ok := mapVal["peers"].(string)
-
 	if !ok {
-		return []peer.Peer{}, errors.New("response not peer response")
+		return "", 0, errors.New("Error while formatting peers response")
+	}
+	interval, ok1 := mapVal["interval"].(int)
+
+	if !ok1 {
+		return "", 0, errors.New("Error while formatting peers response")
 	}
 
-	return mapPeerBytesToPeer([]byte(peerBytesStr))
+	return peerBytesStr, interval, nil
 }
 
 func mapPeerBytesToPeer(peerBytes []byte) ([]peer.Peer, error) {
