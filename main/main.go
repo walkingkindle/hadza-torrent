@@ -118,19 +118,28 @@ func handleIsTorrentFile(reader *bufio.Reader, peerID [20]byte) error {
 }
 
 func startDownloadLoop(torrent types.TorrentFile, peerID [20]byte, done []bool, file *os.File) {
+	const minBackoff = 15 * time.Second
+	const maxBackoff = 15 * time.Minute
+	backoff := minBackoff
 	for {
 		trackersResponse, err := tracker.GetPeers(torrent, string(peerID[:]), "0", "0")
-		printInputReadErrorIfExists(err)
 		if err != nil {
+			slog.Warn("announce failed, backing off",
+				"err", err, "retry_in", backoff)
+
+			time.Sleep(backoff)
+			backoff = min(backoff*2, maxBackoff)
+
 			continue
 		}
+
+		backoff = minBackoff
 
 		timer := time.NewTimer(time.Second * time.Duration(trackersResponse.Interval))
 
 		timedOut := false
 
 		for _, peer := range trackersResponse.Peers {
-			// Check if timer has fired before starting work on a new peer
 			select {
 			case <-timer.C:
 				timedOut = true
