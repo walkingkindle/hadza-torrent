@@ -124,7 +124,6 @@ func startDownloadLoop(torrent types.TorrentFile, peerID [20]byte, done []bool, 
 	const maxBackoff = 15 * time.Minute
 	backoff := minBackoff
 	for {
-		lastAnnounceTime := time.Now()
 		trackersResponse, err := tracker.GetPeers(torrent, string(peerID[:]), "0", "0")
 		if err != nil {
 			slog.Warn("announce failed, backing off",
