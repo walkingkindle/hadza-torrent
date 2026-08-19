@@ -23,12 +23,11 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 	// can take considerably longer than that.
 	conn.Conn.SetDeadline(time.Now().Add(60 * time.Second))
 
+	defer conn.Conn.Close()
 	err := conn.WaitForUnchoke()
 	if err != nil {
 		return err
 	}
-
-	defer conn.Conn.Close()
 
 	slog.Info("starting download",
 		"file", torrent.Name,

@@ -48,7 +48,7 @@ func buildTrackerURL(infoHash []byte, torrentlength int, announce string, peerId
 		"peer_id":    []string{peerId},
 		"port":       []string{strconv.Itoa(6881)},
 		"uploaded":   []string{uploaded},
-		"downloaded": []string{"0"},
+		"downloaded": []string{downloaded},
 		"compact":    []string{"1"},
 		"left":       []string{strconv.Itoa(torrentlength)},
 	}

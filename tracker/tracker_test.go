@@ -60,12 +60,12 @@ func TestMapPeerBytesToPeer(t *testing.T) {
 func TestParseBodyIntoPeerStruct(t *testing.T) {
 	t.Run("valid peer response", func(t *testing.T) {
 		result := map[string]any{"peers": string([]byte{127, 0, 0, 1, 0x1a, 0xe1})}
-		peers, err := parseBodyIntoPeerStruct(result)
+		trackersResponse, err := parseBodyIntoPeerStruct(result)
 		if err != nil {
 			t.Fatalf("parseBodyIntoPeerStruct() failed: %v", err)
 		}
-		if len(peers) != 1 || peers[0].Port != 6881 {
-			t.Errorf("unexpected peers: %+v", peers)
+		if len(trackersResponse.Peers) != 1 || trackersResponse.Peers[0].Port != 6881 {
+			t.Errorf("unexpected peers: %+v", trackersResponse.Peers)
 		}
 	})
 
