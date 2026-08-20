@@ -4,12 +4,18 @@ package torrentparser
 import (
 	"crypto/sha1"
 	"errors"
+	"fmt"
+	"os"
 
 	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/types"
 )
 
-func ParseTorrentFile(bytes []byte) (types.TorrentFile, error) {
+func ParseTorrentFile(location string) (types.TorrentFile, error) {
+	bytes, err := getRawBytesFromFile(location)
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
 	value, valueErr := bencodeparser.Decode(bytes)
 	if valueErr != nil {
 		return types.TorrentFile{}, valueErr
@@ -37,6 +43,23 @@ func ParseTorrentFile(bytes []byte) (types.TorrentFile, error) {
 	}
 
 	return torrentFile, nil
+}
+
+func openFile(location string) ([]byte, error) {
+	bytes, err := os.ReadFile(location)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open %q: %w", location, err)
+	}
+	return bytes, nil
+}
+
+func getRawBytesFromFile(location string) ([]byte, error) {
+	bytes, err := openFile(location)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return bytes, nil
 }
 
 // func printInfoDict(info map[string]any) {
