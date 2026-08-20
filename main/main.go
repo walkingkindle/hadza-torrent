@@ -1,24 +1,13 @@
 package main
 
 import (
-	"bufio"
-	"crypto/rand"
-	"errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/avast/retry-go/v5"
-
-	"torrent-client-go/download"
-	"torrent-client-go/helpers"
-	"torrent-client-go/peer"
 	"torrent-client-go/session"
-	"torrent-client-go/tracker"
-	"torrent-client-go/types"
 )
 
 func main() {
@@ -59,13 +48,4 @@ func setupLogging() {
 	})
 
 	slog.SetDefault(slog.New(handler))
-}
-
-func connectToPeer(selectedPeer peer.Peer, torrent types.TorrentFile, peerID [20]byte) (connection *peer.PeerConnection, err error) {
-	conn, err := peer.Connect(selectedPeer, torrent.InfoHash, peerID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &conn, nil
 }

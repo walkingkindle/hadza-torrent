@@ -37,7 +37,7 @@ func getResponse(url string) (peer.TrackersResponse, error) {
 	return parseBodyIntoPeerStruct(result)
 }
 
-func buildTrackerURL(infoHash []byte, torrentlength int, announce string, peerId string, uploaded string, downloaded string) (string, error) {
+func buildTrackerURL(infoHash []byte, torrentlength int, announce string, peerId string, state peer.DownloadState) (string, error) {
 	base, err := url.Parse(announce)
 	if err != nil {
 		return "", err
@@ -47,10 +47,10 @@ func buildTrackerURL(infoHash []byte, torrentlength int, announce string, peerId
 		"info_hash":  []string{string(infoHash)},
 		"peer_id":    []string{peerId},
 		"port":       []string{strconv.Itoa(6881)},
-		"uploaded":   []string{uploaded},
-		"downloaded": []string{downloaded},
+		"uploaded":   []string{strconv.FormatInt(state.Uploaded, 10)},
+		"downloaded": []string{strconv.FormatInt(state.Downloaded, 10)},
 		"compact":    []string{"1"},
-		"left":       []string{strconv.Itoa(torrentlength)},
+		"left":       []string{strconv.FormatInt(state.Left, 10)},
 	}
 
 	base.RawQuery = params.Encode()
