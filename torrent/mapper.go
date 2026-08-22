@@ -85,7 +85,7 @@ func parseIntFromData(data map[string]any, key string) (int, error) {
 	number, ok := data[key].(int)
 
 	if !ok {
-		return 0, errors.New("cannot convert the name property to int, failed")
+		return 0, fmt.Errorf("cannot convert the %s property to int, failed", key)
 	}
 
 	return number, nil

@@ -10,7 +10,6 @@ import (
 	"os"
 	"time"
 
-	"torrent-client-go/helpers"
 	"torrent-client-go/peer"
 	"torrent-client-go/types"
 )
@@ -18,7 +17,76 @@ import (
 const stdPieceSize = 16384 // 16kib
 var ErrLocal = errors.New("local failure")
 
-func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, done []bool) error {
+func (s *DownloadStatus) ClaimPiece(conn *peer.PeerConnection) (int, bool) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	for i := range s.Done {
+		if s.Done[i] || s.InProgress[i] {
+			continue
+		}
+
+		if !conn.HasPiece(i) {
+			continue
+		}
+
+		s.InProgress[i] = true
+		return i, true
+	}
+
+	return 0, false
+}
+
+func (s *DownloadStatus) DoneCount() int {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	count := 0
+	for _, Done := range s.Done {
+		if Done {
+			count++
+		}
+	}
+
+	return count
+}
+
+func (s *DownloadStatus) TotalPieces() int {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	return len(s.Done)
+}
+
+func (s *DownloadStatus) Complete() bool {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	for _, Done := range s.Done {
+		if !Done {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (s *DownloadStatus) CompletePiece(i int) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	s.InProgress[i] = false
+	s.Done[i] = true
+}
+
+func (s *DownloadStatus) ReleasePiece(i int) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	s.InProgress[i] = false
+}
+
+func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, downloadStatus *DownloadStatus) error {
 	// Connect leaves a short handshake deadline on the socket; being unchoked
 	// can take considerably longer than that.
 	conn.Conn.SetDeadline(time.Now().Add(60 * time.Second))
@@ -37,11 +105,11 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 
 	started := time.Now()
 
-	for helpers.CountTrue(done) < len(done) {
-		i, ok := nextWantedPiece(conn, done)
+	for !downloadStatus.Complete() {
+		i, ok := downloadStatus.ClaimPiece(conn)
 		if !ok {
 			slog.Info("waiting for the peer to offer a piece we still need",
-				"peer", conn.Peer.IP, "advertised", conn.PieceCount(), "have", helpers.CountTrue(done))
+				"peer", conn.Peer.IP, "advertised", conn.PieceCount(), "have", downloadStatus.DoneCount())
 
 			// Nothing on offer that we still need. A peer's availability grows
 			// over the life of the connection -- a superseeding seed sends no
@@ -49,26 +117,27 @@ func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.Fil
 			// the next advertisement instead of giving up on the whole file.
 			if err := awaitAdvertisement(conn); err != nil {
 				return fmt.Errorf("got %d of %d pieces from %s before it stopped offering any: %w",
-					helpers.CountTrue(done), len(done), conn.Peer.IP, err)
+					downloadStatus.DoneCount, downloadStatus.TotalPieces(), conn.Peer.IP, err)
 			}
 			continue
 		}
 
 		piece, err := downloadPiece(i, torrent, conn)
 		if err != nil {
+			downloadStatus.ReleasePiece(i)
 			return err
 		}
 
 		if _, err := file.WriteAt(piece, int64(i*torrent.PieceLength)); err != nil {
+			downloadStatus.ReleasePiece(i)
 			return fmt.Errorf("writing piece %d: %w: %w", i, ErrLocal, err)
 		}
 
-		done[i] = true
-
+		downloadStatus.CompletePiece(i)
 		slog.Info("piece verified and written",
 			"piece", i,
-			"have", helpers.CountTrue(done),
-			"of", len(done),
+			"have", downloadStatus.DoneCount(),
+			"of", downloadStatus.TotalPieces(),
 			"bytes", len(piece),
 			"elapsed", time.Since(started).Round(time.Second))
 
@@ -90,9 +159,9 @@ func buildHavePayload(pieceIndex int) []byte {
 
 // nextWantedPiece returns the lowest indexed piece we still need that the peer
 // has actually advertised. Requesting anything else gets the connection closed.
-func nextWantedPiece(conn *peer.PeerConnection, done []bool) (int, bool) {
-	for i := range done {
-		if !done[i] && conn.HasPiece(i) {
+func nextWantedPiece(conn *peer.PeerConnection, Done []bool) (int, bool) {
+	for i := range Done {
+		if !Done[i] && conn.HasPiece(i) {
 			return i, true
 		}
 	}

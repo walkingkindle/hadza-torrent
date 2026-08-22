@@ -3,8 +3,12 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"os"
+	"sync"
 
+	"torrent-client-go/download"
 	"torrent-client-go/helpers"
 	"torrent-client-go/peer"
 	torrentparser "torrent-client-go/torrent"
@@ -28,9 +32,8 @@ func DownloadFileFromTorrent(location string) error {
 		return err
 	}
 
-	done := make([]bool, len(torrent.PieceHashes))
 	context := context.Background()
-	err = downloadLoop(context, torrent, peerId, done, file)
+	err = downloadLoop(context, torrent, peerId, file)
 	if err != nil {
 		return err
 	}
@@ -50,16 +53,61 @@ func createFile(torrent types.TorrentFile) (*os.File, error) {
 	return file, nil
 }
 
-func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID string, done []bool, file *os.File) error {
+func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byte, file *os.File) error {
 	p := &peer.Progress{}
-	_ = performAnnounce(
+	announceResponse := performAnnounce(
 		ctx,
 		torrent,
-		peerID,
+		string(peerID[:]),
 		func() peer.DownloadState {
 			return p.DownloadState(int64(torrent.Length))
 		},
 	)
+	state := &download.DownloadStatus{
+		Done:       make([]bool, len(torrent.PieceHashes)),
+		InProgress: make([]bool, len(torrent.PieceHashes)),
+	}
+	var wg sync.WaitGroup
+
+	for response := range announceResponse {
+		if state.Complete() {
+			break
+		}
+		for _, p := range response {
+			if state.Complete() {
+				break
+			}
+			wg.Add(1)
+			go func(p peer.Peer) {
+				defer wg.Done()
+				connection, err := peer.Connect(p, torrent.InfoHash, peerID)
+				if err != nil {
+					slog.Warn("peer rejected connection", "peer", p, "error", err)
+					return
+				}
+
+				if err = download.Download(&connection, torrent, file, state); err != nil {
+					slog.Warn("peer download failed", "peer", p.IP, "error", err)
+				}
+			}(p)
+		}
+
+		// break out of the annouce peer loop if we have all the pieces.
+		if state.Complete() {
+			break
+		}
+	}
+	wg.Wait()
+
+	if !state.Complete() {
+		return fmt.Errorf("download incomplete got %d of %d pieces",
+			state.DoneCount(), state.TotalPieces())
+	}
+
+	slog.Info("torrent download complete",
+		"file",
+		torrent.Name,
+		"pieces", state.TotalPieces())
 
 	return nil
 }

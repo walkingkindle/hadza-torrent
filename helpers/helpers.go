@@ -15,12 +15,12 @@ func CountTrue(bools []bool) int {
 	return count
 }
 
-func GeneratePeerID() (string, error) {
+func GeneratePeerID() ([20]byte, error) {
 	var bytes [20]byte
 	_, err := rand.Read(bytes[:])
 	if err != nil {
-		return "", err
+		return [20]byte{}, err
 	}
 
-	return string(bytes[:]), nil
+	return bytes, nil
 }

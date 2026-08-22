@@ -139,6 +139,14 @@ is a design question wearing a factual question's clothes, and the answer is
 the concept, the API to reach for, and the tradeoff. Not the block. The genuine
 factual questions are the ones whose answers live outside this repo.
 
+**Aleksa's day job is .NET.** When explaining a Go language or runtime concept,
+lead with the C#/.NET analogue if an honest one exists — and say where the
+analogy breaks, because the breakage is usually the part that matters. See
+"Go for a .NET developer" at the bottom of this file for the mapping already
+established; extend that section rather than re-deriving it in chat. Note that
+this is about *explaining Go*, not about writing his client — a C# snippet that
+transliterates line-for-line into the Go he needs is still banned by rule 1.
+
 ---
 
 ## The override
@@ -258,3 +266,95 @@ Not built yet, roughly in order of value:
 - Blank line between logical steps inside functions (existing house style)
 - Tests are table-driven, in `package peer_test` style external test packages
 - `gofmt`, `go vet`, and `go test ./...` should all be clean before stopping
+
+---
+
+## Go for a .NET developer
+
+Aleksa is primarily a C#/.NET developer. These are the analogies that hold, and
+more importantly the places they break.
+
+### Goroutines are not `async`, and not `yield return`
+
+The tempting model is "a combination of `yield return` and `async`". Reject it.
+Both of those are **compiler-generated state machines** — `async` and iterators
+rewrite your method into a class with a `MoveNext`, and the "stack" is really a
+heap-allocated closure chain. A goroutine is nothing of the sort: it has a
+**real, growable stack** (starts ~2 KB, grows on demand) and the Go runtime
+multiplexes it onto OS threads with its own M:N scheduler. It is far closer to a
+thread than to a `Task`.
+
+The single biggest practical consequence: **Go has no function colouring.**
+There is no `async` keyword, no `await`, no `Task<T>` return type, and no
+"async all the way down". Any function may block. `conn.Read` just blocks, and
+the scheduler parks that goroutine and runs another on the same OS thread. A
+.NET developer's instinct to hunt for the `await` will find nothing, because
+the blocking *is* the API.
+
+Where the `yield return` intuition does pay off: a **producer goroutine feeding
+a channel** behaves much like `IAsyncEnumerable<T>` — lazy, backpressured,
+consumed with `for range`. That resemblance is the *pattern*, not the goroutine.
+
+Second consequence: a goroutine is **fire-and-forget with no handle**. `go f()`
+returns nothing — no `Task` to await, no result, no exception propagation, no
+`ContinueWith`. If you need to know when it finished, you build that yourself
+with a channel or a `sync.WaitGroup`. A panic in a goroutine that nobody
+recovers takes down the whole process, unlike an unobserved faulted `Task`.
+
+### Concurrency mapping
+
+| Go | .NET | Notes |
+|---|---|---|
+| `go f()` | `_ = Task.Run(f)` | but blocking calls inside are fine and idiomatic |
+| `chan T` | `System.Threading.Channels.Channel<T>` | genuinely the same design; Go was the inspiration |
+| `make(chan T, n)` | `Channel.CreateBounded<T>(n)` | |
+| `make(chan T)` (unbuffered) | *no equivalent* | a rendezvous: the send does not complete until a receiver takes it |
+| `ch <- v` | `await writer.WriteAsync(v)` | |
+| `v := <-ch` | `await reader.ReadAsync()` | |
+| `v, ok := <-ch` | `TryRead(out v)` | `ok == false` means closed **and drained** |
+| `close(ch)` | `writer.Complete()` | sending on a closed channel *panics* |
+| `for v := range ch` | `await foreach (… ReadAllAsync())` | exits cleanly when closed |
+| `select` | `Task.WhenAny` | see caveat below |
+| `select` + `default` | `TryRead` / `TryWrite` | non-blocking attempt |
+| `context.Context` | `CancellationToken` | near-exact |
+| `context.WithCancel` | `CancellationTokenSource` | |
+| `<-ctx.Done()` | `token.IsCancellationRequested` | it is a channel closed on cancel — nothing special |
+| `sync.WaitGroup` | `CountdownEvent` / `Task.WhenAll` | |
+| `sync.Mutex` | `lock` / `SemaphoreSlim(1)` | |
+| `atomic.Int64` | `Interlocked.Add` / `.Read` | the type-based form hides the field so plain access is impossible |
+| `time.NewTimer` + `<-t.C` | `Task.Delay` | |
+| `go test -race` | *no equivalent* | genuinely better than anything in .NET; use it |
+
+**The `select` caveat.** `Task.WhenAny` tells you which task completed and
+leaves the rest running. `select` does something stronger: it *takes a value
+from exactly one channel* and leaves the others untouched, re-evaluating every
+iteration. Expressing that with `WhenAny` is awkward; this is a place Go is
+simply nicer, and it's why the coordinator pattern looks the way it does.
+
+**Cancellation caveat.** A `CancellationToken` passed into `HttpClient` actually
+aborts the request. `ctx.Done()` does **not** interrupt a blocked
+`net.Conn.Read` — Go's cancellation is cooperative and the socket does not
+observe the context. You interrupt a blocked read by calling `Close()` on the
+connection from another goroutine, or by setting a deadline.
+
+### Language mapping
+
+| Go | .NET | The trap |
+|---|---|---|
+| `error` return value | exceptions | no `try`/`catch`; every call site decides. `panic` is not an exception — it's for bugs, not control flow |
+| `defer` | `finally` / `using` | runs at **function** exit, not scope exit; multiple defers run LIFO |
+| `[20]byte` | `byte[]` | **it is a value type** — assignment and parameter passing *copy* all 20 bytes, like a C# `struct` |
+| `[]byte` (slice) | `Span<T>` / `Memory<T>` | a view (ptr, len, cap) over a backing array; two slices can alias the same memory |
+| `struct` | `struct` | value semantics, copied on assignment |
+| `*Foo` | `class Foo` | a pointer-to-struct is the closest thing to a C# reference type |
+| interface | interface | **structural, not nominal** — no `: IFoo`; a type satisfies it by having the methods |
+| zero value | `default(T)` | but usable: `var x atomic.Int64` needs no constructor, `var m sync.Mutex` is ready to lock |
+| `nil` | `null` | a nil map reads fine but panics on write; a nil channel blocks forever rather than throwing |
+| package | assembly + namespace | the visibility unit. `Capital` = public, `lowercase` = internal to the package |
+| no inheritance | class hierarchies | composition and embedding only |
+
+The one that bites hardest in this repo: **arrays are values.** `InfoHash
+[20]byte` and `PeerID [20]byte` are copied wholesale on every assignment and
+every function call, which is why converting to a string needs `[:]` first
+(slicing produces a view) and why the compiler will not let you slice a
+non-addressable array such as a function's return value.

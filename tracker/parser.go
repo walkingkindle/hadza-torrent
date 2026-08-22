@@ -36,6 +36,8 @@ func parseBodyIntoPeerStruct(result any) (peer.TrackersResponse, error) {
 		return peer.TrackersResponse{}, err
 	}
 
+	slog.Info("tracker peer payload", "bytes", len(peerString))
+
 	peers, err := mapPeerBytesToPeer([]byte(peerString))
 	if err != nil {
 		return peer.TrackersResponse{}, err
