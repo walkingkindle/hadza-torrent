@@ -23,6 +23,8 @@ func main() {
 	if err != nil {
 		fmt.Printf("error downloading file, %s, /n", err.Error())
 		os.Exit(1)
+	} else {
+		os.Exit(0)
 	}
 }
 

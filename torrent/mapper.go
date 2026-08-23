@@ -26,7 +26,6 @@ func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 		return types.TorrentFile{}, err
 	}
 	torrent.Announce = announce
-
 	pieceLength, err := parseIntFromData(info, "piece length")
 	if err != nil {
 		return types.TorrentFile{}, err
@@ -41,7 +40,7 @@ func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 
 	torrent.Length = length
 
-	createdBy, err := parseStringFromData(info, "created by")
+	createdBy, err := parseStringFromData(data, "created by")
 	if err != nil {
 		fmt.Print("Torrent has no created by column, skipping \n")
 	}
@@ -82,13 +81,23 @@ func gethashesFromtorrent(allHashes []byte) (hashesCollection [][20]byte, err er
 }
 
 func parseIntFromData(data map[string]any, key string) (int, error) {
-	number, ok := data[key].(int)
-
+	value, ok := data[key]
 	if !ok {
-		return 0, fmt.Errorf("cannot convert the %s property to int, failed", key)
+		return 0, fmt.Errorf("missing %s property", key)
 	}
 
-	return number, nil
+	switch number := value.(type) {
+	case int:
+		return number, nil
+	case int64:
+		return int(number), nil
+	default:
+		return 0, fmt.Errorf(
+			"cannot convert %s property to int, got %T",
+			key,
+			value,
+		)
+	}
 }
 
 func parseStringFromData(data map[string]any, key string) (string, error) {

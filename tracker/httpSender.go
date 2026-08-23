@@ -52,7 +52,6 @@ func buildTrackerURL(infoHash []byte, torrentlength int, announce string, peerId
 		"compact":    []string{"1"},
 		"left":       []string{strconv.FormatInt(state.Left, 10)},
 		"event":      []string{"started"},
-		"numwant":    []string{"50"},
 	}
 
 	base.RawQuery = params.Encode()

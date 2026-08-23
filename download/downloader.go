@@ -2,6 +2,7 @@
 package download
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
@@ -86,7 +87,7 @@ func (s *DownloadStatus) ReleasePiece(i int) {
 	s.InProgress[i] = false
 }
 
-func Download(conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, downloadStatus *DownloadStatus) error {
+func Download(ctx context.Context, conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, downloadStatus *DownloadStatus) error {
 	// Connect leaves a short handshake deadline on the socket; being unchoked
 	// can take considerably longer than that.
 	conn.Conn.SetDeadline(time.Now().Add(60 * time.Second))

@@ -27,13 +27,13 @@ func DownloadFileFromTorrent(location string) error {
 	}
 	defer file.Close()
 
-	peerId, err := helpers.GeneratePeerID()
+	peerID, err := helpers.GeneratePeerID()
 	if err != nil {
 		return err
 	}
 
 	context := context.Background()
-	err = downloadLoop(context, torrent, peerId, file)
+	err = downloadLoop(context, torrent, peerID, file)
 	if err != nil {
 		return err
 	}
@@ -54,6 +54,8 @@ func createFile(torrent types.TorrentFile) (*os.File, error) {
 }
 
 func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byte, file *os.File) error {
+	downloadCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	p := &peer.Progress{}
 	announceResponse := performAnnounce(
 		ctx,
@@ -75,6 +77,7 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 		}
 		for _, p := range response {
 			if state.Complete() {
+				cancel()
 				break
 			}
 			wg.Add(1)
@@ -85,21 +88,24 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 					slog.Warn("peer rejected connection", "peer", p, "error", err)
 					return
 				}
-
 				if err = download.Download(&connection, torrent, file, state); err != nil {
 					slog.Warn("peer download failed", "peer", p.IP, "error", err)
+					return
+				}
+
+				if state.Complete() {
+					cancel()
 				}
 			}(p)
-		}
-
-		// break out of the annouce peer loop if we have all the pieces.
-		if state.Complete() {
-			break
 		}
 	}
 	wg.Wait()
 
 	if !state.Complete() {
+		if err := downloadCtx.Err(); err != nil {
+			return err
+		}
+
 		return fmt.Errorf("download incomplete got %d of %d pieces",
 			state.DoneCount(), state.TotalPieces())
 	}
