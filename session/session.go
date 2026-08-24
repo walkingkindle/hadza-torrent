@@ -58,7 +58,7 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 	defer cancel()
 	p := &peer.Progress{}
 	announceResponse := performAnnounce(
-		ctx,
+		downloadCtx,
 		torrent,
 		string(peerID[:]),
 		func() peer.DownloadState {
@@ -88,7 +88,7 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 					slog.Warn("peer rejected connection", "peer", p, "error", err)
 					return
 				}
-				if err = download.Download(&connection, torrent, file, state); err != nil {
+				if err = download.Download(downloadCtx, &connection, torrent, file, state); err != nil {
 					slog.Warn("peer download failed", "peer", p.IP, "error", err)
 					return
 				}
