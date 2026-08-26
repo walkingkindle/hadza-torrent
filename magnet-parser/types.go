@@ -1,3 +1,4 @@
+// Package parser does the work of parsing the magnet link
 package parser
 
 type MagnetURI struct {
@@ -17,5 +18,5 @@ type MagnetURI struct {
 	Peer          string
 }
 
-// TO DO: WebSeed can also be a slice. It can have multiple values. Update this and then the parser and the tests.
+// TODO: WebSeed can also be a slice. It can have multiple values. Update this and then the parser and the tests.
 var KeysArr = []string{ExactTopic, DisplayName, ExactLength, AddressTracker, WebSeed, AcceptableSource, ExactSource, KeywordTopic, ManifestTopic, SelectOnly, Peer}

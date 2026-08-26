@@ -8,6 +8,9 @@ import (
 const MAGNETSTART = "magnet:?"
 
 func ParseMagnet(magnetLink string) (MagnetURI, error) {
+	if magnetLink == "" {
+		return MagnetURI{}, ErrInvalidMagnetLink
+	}
 	if !isAMagnet(magnetLink) {
 		return MagnetURI{}, ErrInvalidMagnetLink
 	}

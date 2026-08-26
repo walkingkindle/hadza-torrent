@@ -1,4 +1,5 @@
-package session
+// Package announcer takes in a context to provide a list of peers
+package announcer
 
 import (
 	"context"
@@ -10,7 +11,7 @@ import (
 	"torrent-client-go/types"
 )
 
-func performAnnounce(ctx context.Context, torrent types.TorrentFile, peerID string, progress func() peer.DownloadState) <-chan []peer.Peer {
+func PerformAnnounce(ctx context.Context, torrent types.TorrentInfo, peerID string, progress func() peer.DownloadState) <-chan []peer.Peer {
 	peersCh := make(chan []peer.Peer, 1)
 
 	go func() {

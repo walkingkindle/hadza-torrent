@@ -10,6 +10,7 @@ import (
 
 	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/peer"
+	"torrent-client-go/types"
 )
 
 func getResponse(url string) (peer.TrackersResponse, error) {
@@ -37,14 +38,14 @@ func getResponse(url string) (peer.TrackersResponse, error) {
 	return parseBodyIntoPeerStruct(result)
 }
 
-func buildTrackerURL(infoHash []byte, torrentlength int, announce string, peerId string, state peer.DownloadState) (string, error) {
-	base, err := url.Parse(announce)
+func buildTrackerURL(torrentInfo types.TorrentInfo, peerId string, state peer.DownloadState) (string, error) {
+	base, err := url.Parse(torrentInfo.Announce)
 	if err != nil {
 		return "", err
 	}
 
 	params := url.Values{
-		"info_hash":  []string{string(infoHash)},
+		"info_hash":  []string{string(torrentInfo.InfoHash)},
 		"peer_id":    []string{peerId},
 		"port":       []string{strconv.Itoa(6881)},
 		"uploaded":   []string{strconv.FormatInt(state.Uploaded, 10)},

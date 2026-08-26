@@ -8,8 +8,12 @@ import (
 	"os"
 	"sync"
 
+	"torrent-client-go/announcer"
 	"torrent-client-go/download"
 	"torrent-client-go/helpers"
+	"torrent-client-go/peer-downloader"
+
+	// "torrent-client-go/magnet-parser"
 	"torrent-client-go/peer"
 	torrentparser "torrent-client-go/torrent"
 	"torrent-client-go/types"
@@ -20,7 +24,20 @@ func DownloadFileFromTorrent(location string) error {
 	if err != nil {
 		return err
 	}
+	return downloadFileFromTorrent(torrent)
+}
 
+// func DonwloadFileFromMagnet(magnetLink string) error {
+// 	magnetLink, err := parser.ParseMagnet(magnetLink)
+//
+// 	if err != nil {
+// 		return err
+// 	}
+//
+//
+// }
+
+func downloadFileFromTorrent(torrent types.TorrentFile) error {
 	file, err := createFile(torrent)
 	if err != nil {
 		return err
@@ -33,12 +50,7 @@ func DownloadFileFromTorrent(location string) error {
 	}
 
 	context := context.Background()
-	err = downloadLoop(context, torrent, peerID, file)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return downloadLoop(context, torrent, peerID, file)
 }
 
 func createFile(torrent types.TorrentFile) (*os.File, error) {
@@ -57,9 +69,9 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 	downloadCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p := &peer.Progress{}
-	announceResponse := performAnnounce(
+	announceResponse := announcer.PerformAnnounce(
 		downloadCtx,
-		torrent,
+		types.TorrentInfo{InfoHash: string(torrent.InfoHash[:]), Announce: torrent.Announce, Length: torrent.Length},
 		string(peerID[:]),
 		func() peer.DownloadState {
 			return p.DownloadState(int64(torrent.Length))
@@ -83,14 +95,8 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 			wg.Add(1)
 			go func(p peer.Peer) {
 				defer wg.Done()
-				connection, err := peer.Connect(p, torrent.InfoHash, peerID)
-				if err != nil {
-					slog.Warn("peer rejected connection", "peer", p, "error", err)
-					return
-				}
-				if err = download.Download(downloadCtx, &connection, torrent, file, state); err != nil {
+				if err := peerdownloader.DownloadFromPeer(downloadCtx, p, torrent, peerID, file, state); err != nil {
 					slog.Warn("peer download failed", "peer", p.IP, "error", err)
-					return
 				}
 
 				if state.Complete() {
@@ -117,43 +123,3 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 
 	return nil
 }
-
-// for _, peer := range trackersResponse.Peers {
-// err = retry.New(
-// 	retry.Attempts(0),
-// 	retry.Delay(2*time.Second),
-// 	retry.MaxDelay(2*time.Minute),
-// 	retry.LastErrorOnly(true),
-// 	retry.RetryIf(func(err error) bool {
-// 		if errors.Is(err, download.ErrLocal) {
-// 			return false
-// 		}
-// 		return noProgress < 5
-// 	}),
-// ).Do(func() error {
-// 	conn, err := connectToPeer(peer, torrent, peerID)
-// 	if err != nil {
-// 		noProgress++
-// 		return err
-// 	}
-// 	before := helpers.CountTrue(done)
-// 	err = download.Download(conn, torrent, file, done)
-//
-// 	if before == helpers.CountTrue(done) {
-// 		noProgress++
-// 	} else {
-// 		noProgress = 0
-// 	}
-//
-// 	if helpers.CountTrue(done) == len(done) {
-// 		return nil
-// 	}
-//
-// 	return err
-// })
-//
-// // 4. If we timed out, loop again to re-announce
-// if helpers.CountTrue(done) == len(done) {
-// } else {
-// 	slog.Warn("Finding peer failed,", "err", err)
-// }

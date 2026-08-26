@@ -39,3 +39,11 @@ func (p *Progress) DownloadState(totalLength int64) DownloadState {
 		Left:       left,
 	}
 }
+
+func (p *Progress) InitialDownloadState() DownloadState {
+	return DownloadState{
+		Uploaded:   0,
+		Downloaded: 0,
+		Left:       e,
+	}
+}

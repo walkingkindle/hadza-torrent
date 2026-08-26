@@ -10,3 +10,9 @@ type TorrentFile struct {
 	Length      int
 	Name        string
 }
+
+type TorrentInfo struct {
+	Announce string
+	Length   int64
+	InfoHash string
+}

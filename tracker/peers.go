@@ -8,9 +8,8 @@ import (
 	"torrent-client-go/types"
 )
 
-func GetPeers(torrent types.TorrentFile, peerId string, state peer.DownloadState) (peer.TrackersResponse, error) {
-	url, err := buildTrackerURL(torrent.InfoHash[:],
-		torrent.Length, torrent.Announce, peerId, state)
+func GetPeers(torrent types.TorrentInfo, peerId string, state peer.DownloadState) (peer.TrackersResponse, error) {
+	url, err := buildTrackerURL(torrent, peerId, state)
 	if err != nil {
 		return peer.TrackersResponse{}, errors.New("failed parsing url")
 	}
