@@ -3,6 +3,7 @@ package metadata
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	"torrent-client-go/announcer"
@@ -25,14 +26,26 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 			return p.DownloadState(length)
 		},
 	)
+	for response := range announceResponse {
+		for _, p := range response {
+			var infohash [20]byte
+			copy(infohash[:], []byte(magnet.Infohash))
+			conn, err := peer.Connect(p, infohash, peerID)
+			if err != nil {
+				continue
+			}
 
-	for p := range announceResponse {
-		conn, err := peer.Connect(p, magnet.Infohash, peerID)
-		if err != nil {
-			continue
+			torrent, err := fetchFromPeer(ctx, conn)
+			if err != nil {
+				return types.TorrentFile{}, err
+			}
+
+			return torrent, nil
 		}
-
-		// TODO: Write this whole fucking module
-		metadata, err := fetchFromPeer(ctxt, &conn)
 	}
+	return types.TorrentFile{}, errors.New("could not find a valid response from any of the peers")
+}
+
+func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.TorrentFile, error) {
+	panic("unimplemented")
 }

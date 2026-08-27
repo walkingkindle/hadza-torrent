@@ -71,7 +71,7 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 	p := &peer.Progress{}
 	announceResponse := announcer.PerformAnnounce(
 		downloadCtx,
-		types.TorrentInfo{InfoHash: string(torrent.InfoHash[:]), Announce: torrent.Announce, Length: torrent.Length},
+		types.TorrentInfo{InfoHash: string(torrent.InfoHash[:]), Announce: torrent.Announce, Length: int64(torrent.Length)},
 		string(peerID[:]),
 		func() peer.DownloadState {
 			return p.DownloadState(int64(torrent.Length))
