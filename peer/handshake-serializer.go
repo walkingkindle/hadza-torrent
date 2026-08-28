@@ -17,13 +17,15 @@ func (h Handshake) Serialize() ([handshakeLength]byte, error) {
 
 	buf.WriteByte(byte(len(protocol))) // pstrlen; bytes.Buffer writes never error
 	buf.WriteString(protocol)          // pstr
-	buf.Write(make([]byte, 8))         // reserved
+	buf.Write(h.Reserved[:])           // reserved
 	buf.Write(h.InfoHash[:])
 	buf.Write(h.PeerID[:])
 
 	if buf.Len() != len(arr) {
 		return [handshakeLength]byte{}, fmt.Errorf("peer: serialized handshake is %d bytes, want %d", buf.Len(), len(arr))
 	}
+
+	copy(arr[:], buf.Bytes())
 
 	return arr, nil
 }
@@ -42,6 +44,8 @@ func ParseHandshake(data []byte) (h Handshake, err error) {
 	copy(h.InfoHash[:], data[28:48])
 
 	copy(h.PeerID[:], data[48:68])
+
+	copy(h.Reserved[:], data[48:68])
 
 	return h, nil
 }

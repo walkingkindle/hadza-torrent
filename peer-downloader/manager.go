@@ -17,6 +17,13 @@ func DownloadFromPeer(downloadCtx context.Context, p peer.Peer, torrent types.To
 		slog.Warn("peer rejected connection", "peer", p, "error", err)
 		return err
 	}
+
+	err = connection.SendInterested()
+	if err != nil {
+		slog.Error("peer connection succeeeded but failed to send interested")
+		connection.Conn.Close()
+		return err
+	}
 	if err = download.Download(downloadCtx, &connection, torrent, file, state); err != nil {
 		return err
 	}

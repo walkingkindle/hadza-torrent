@@ -4,6 +4,7 @@ package metadata
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strconv"
 
 	"torrent-client-go/announcer"
@@ -35,9 +36,25 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 				continue
 			}
 
-			torrent, err := fetchFromPeer(ctx, conn)
+			if !conn.SupportsExtension {
+				slog.Warn("this peer does not support extension, continuing")
+				conn.Conn.Close()
+				continue
+			}
+
+			err = conn.SendInterested()
 			if err != nil {
-				return types.TorrentFile{}, err
+				slog.Warn("peer connection suceeded but not able to send interested")
+				conn.Conn.Close()
+				continue
+			}
+
+			torrent, err := fetchFromPeer(ctx, conn)
+			conn.Conn.Close()
+
+			if err != nil {
+				slog.Warn("failed to fetch metadata", "peer", p.IP, "error", err)
+				continue
 			}
 
 			return torrent, nil
@@ -47,5 +64,19 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 }
 
 func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.TorrentFile, error) {
+	if err := sendExtensionHandshake(conn); err != nil {
+		return types.TorrentFile{}, err
+	}
+
+	extension, err := sendExtensionHandshake(ctx, conn)
+
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+
+	return types.TorrentFile{}, nil
+}
+
+func sendExtensionHandshake(conn peer.PeerConnection) error {
 	panic("unimplemented")
 }

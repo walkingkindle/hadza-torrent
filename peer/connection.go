@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const extensionProtocolBit byte = 0x10
+
 // addr identifies this peer in log lines.
 func (pc *PeerConnection) addr() string {
 	return net.JoinHostPort(pc.Peer.IP.String(), strconv.Itoa(int(pc.Peer.Port)))
@@ -129,7 +131,7 @@ func (pc *PeerConnection) PieceCount() int {
 	count := 0
 
 	for _, b := range pc.Bitfield {
-		for bit := 0; bit < 8; bit++ {
+		for bit := range 8 {
 			if b>>(7-bit)&1 == 1 {
 				count++
 			}
@@ -190,7 +192,9 @@ func Connect(peer Peer, infohash [20]byte, peerID [20]byte) (PeerConnection, err
 	if err != nil {
 		return PeerConnection{}, err
 	}
-	h := Handshake{infohash, peerID}
+	var reserved [8]byte
+	reserved[5] |= 0x10
+	h := Handshake{reserved, infohash, peerID}
 
 	bytes, err := h.Serialize()
 	if err != nil {
@@ -220,21 +224,21 @@ func Connect(peer Peer, infohash [20]byte, peerID [20]byte) (PeerConnection, err
 
 	slog.Info("handshake accepted", "peer", addr, "peer_id", fmt.Sprintf("%q", trimPeerID(parsed.PeerID)))
 
-	connection := PeerConnection{
-		Conn:     conn,
-		Peer:     peer,
-		InfoHash: infohash,
-		PeerID:   peerID,
-		Choked:   true,
-	}
+	return PeerConnection{
+		Conn:              conn,
+		Peer:              peer,
+		InfoHash:          infohash,
+		PeerID:            peerID,
+		Choked:            true,
+		SupportsExtension: parsed.SupportsExtensions(),
+	}, nil
+}
 
-	// A peer will not unchoke us until we say we want something from it.
-	if err = connection.Send(Message{ID: MsgInterested}); err != nil {
-		_ = conn.Close()
-		return PeerConnection{}, err
+func (conn *PeerConnection) SendInterested() error {
+	if err := conn.Send(Message{ID: MsgInterested}); err != nil {
+		return err
 	}
-
-	return connection, nil
+	return nil
 }
 
 // trimPeerID keeps the printable client identifier most peers put at the front
@@ -247,4 +251,8 @@ func trimPeerID(id [20]byte) string {
 	}
 
 	return string(id[:])
+}
+
+func (h Handshake) SupportsExtensions() bool {
+	return h.Reserved[5]&extensionProtocolBit != 0
 }
