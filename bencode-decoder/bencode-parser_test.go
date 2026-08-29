@@ -72,3 +72,74 @@ func TestDecode(t *testing.T) {
 		})
 	}
 }
+
+func TestEncode(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    any
+		want    []byte
+		wantErr bool
+	}{
+		{
+			name:    "success simple int",
+			data:    6,
+			wantErr: false,
+			want:    []byte("i6e"),
+		},
+		{
+			name:    "success simple string",
+			data:    "spam",
+			wantErr: false,
+			want:    []byte("4:spam"),
+		},
+		{
+			name: "success simple dict",
+			data: map[string]any{
+				"foo": 6,
+			},
+			wantErr: false,
+			want:    []byte("d3:fooi6ee"),
+		},
+		{
+			name: "success nested dict",
+			data: map[string]any{
+				"foo": map[string]any{
+					"bar": 6,
+				},
+			},
+			wantErr: false,
+			want:    []byte("d3:food3:bari6eee"),
+		},
+		{
+			name: "success extension handshake",
+			data: map[string]any{
+				"m": map[string]any{
+					"ut_metadata": 1,
+				},
+			},
+			wantErr: false,
+			want:    []byte("d1:md11:ut_metadatai1eee"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotErr := bencodeparser.Encode(tt.data)
+
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("Encode() failed: %v", gotErr)
+				}
+				return
+			}
+
+			if tt.wantErr {
+				t.Fatal("Encode() succeeded unexpectedly")
+			}
+
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Encode() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

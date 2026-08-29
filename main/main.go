@@ -19,7 +19,7 @@ func main() {
 		fmt.Print(err.Error())
 		os.Exit(1)
 	}
-	err = session.DownloadFileFromTorrent(location)
+	err = session.DownloadFile(location)
 	if err != nil {
 		fmt.Printf("error downloading file, %s, /n", err.Error())
 		os.Exit(1)

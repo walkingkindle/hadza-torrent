@@ -11,7 +11,7 @@ func ParseMagnet(magnetLink string) (MagnetURI, error) {
 	if magnetLink == "" {
 		return MagnetURI{}, ErrInvalidMagnetLink
 	}
-	if !isAMagnet(magnetLink) {
+	if !IsAMagnet(magnetLink) {
 		return MagnetURI{}, ErrInvalidMagnetLink
 	}
 
@@ -83,6 +83,6 @@ func mapKeysToMagnetURI(KeysMap map[string][]string) MagnetURI {
 	return magnetURI
 }
 
-func isAMagnet(magnet string) bool {
+func IsAMagnet(magnet string) bool {
 	return strings.HasPrefix(magnet, MAGNETSTART)
 }

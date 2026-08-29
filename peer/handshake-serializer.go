@@ -49,3 +49,14 @@ func ParseHandshake(data []byte) (h Handshake, err error) {
 
 	return h, nil
 }
+
+// func ReadHandshake(conn net.Conn) (Handshake, error) {
+// 	buf := make([]byte, handshakeLength)
+//
+// 	_, err := io.ReadFull(conn, buf)
+// 	if err != nil {
+// 		return Handshake{}, err
+// 	}
+//
+// 	return ParseHandshake(buf)
+// }

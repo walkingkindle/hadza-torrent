@@ -47,4 +47,5 @@ const (
 	MsgRequest       uint8 = 6
 	MsgPiece         uint8 = 7
 	MsgCancel        uint8 = 8
+	MsgExtended      uint8 = 20
 )

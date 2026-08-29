@@ -4,10 +4,12 @@ package metadata
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 
 	"torrent-client-go/announcer"
+	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/magnet-parser"
 	"torrent-client-go/peer"
 	"torrent-client-go/types"
@@ -68,15 +70,72 @@ func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.Torrent
 		return types.TorrentFile{}, err
 	}
 
-	extension, err := sendExtensionHandshake(ctx, conn)
-
+	extension, err := readExtensionHandshake(ctx, conn)
 	if err != nil {
 		return types.TorrentFile{}, err
 	}
 
-	return types.TorrentFile{}, nil
+	data, ok := extension.(map[string]any)
+
+	if !ok {
+		return types.TorrentFile{}, errors.New("metadataID is not a dictionary")
+	}
+
+	for key, value := range data {
+		fmt.Printf("Key: %s, Value: %v\n", key, value)
+	}
+
+	return types.TorrentFile{}, errors.New("stop here")
+}
+
+func readExtensionHandshake(ctx context.Context, conn peer.PeerConnection) (any, error) {
+	msg, err := conn.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+
+	if msg.ID != peer.MsgExtended {
+		return nil, fmt.Errorf("expected extended message, got %d", msg.ID)
+	}
+
+	if len(msg.Payload) == 0 {
+		return nil, errors.New("empty extended message")
+	}
+
+	extensionID := msg.Payload[0]
+
+	if extensionID != 0 {
+		return nil, fmt.Errorf("expected extension handshake (ID 0), got %d", extensionID)
+	}
+
+	return bencodeparser.Decode(msg.Payload[1:])
 }
 
 func sendExtensionHandshake(conn peer.PeerConnection) error {
-	panic("unimplemented")
+	payload, err := buildExtensionMessage()
+	if err != nil {
+		return err
+	}
+	payloadByte, ok := payload.([]byte)
+
+	if !ok {
+		return errors.New("unsupported message received from bencode")
+	}
+	extendedPayload := make([]byte, 1+len(payloadByte))
+	extendedPayload[0] = 0
+
+	copy(extendedPayload[1:], payloadByte)
+
+	return conn.Send(peer.Message{
+		ID:      peer.MsgExtended,
+		Payload: extendedPayload,
+	})
+}
+
+func buildExtensionMessage() (any, error) {
+	return bencodeparser.Encode(map[string]any{
+		"m": map[string]any{
+			"ut_metadata": 1,
+		},
+	})
 }

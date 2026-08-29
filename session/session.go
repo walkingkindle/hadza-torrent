@@ -11,46 +11,56 @@ import (
 	"torrent-client-go/announcer"
 	"torrent-client-go/download"
 	"torrent-client-go/helpers"
-	"torrent-client-go/peer-downloader"
-
-	// "torrent-client-go/magnet-parser"
+	parser "torrent-client-go/magnet-parser"
+	"torrent-client-go/metadata"
 	"torrent-client-go/peer"
+	"torrent-client-go/peer-downloader"
 	torrentparser "torrent-client-go/torrent"
 	"torrent-client-go/types"
 )
 
-func DownloadFileFromTorrent(location string) error {
-	torrent, err := torrentparser.ParseTorrentFile(location)
+func DownloadFile(location string) error {
+	context := context.Background()
+	peerID, err := helpers.GeneratePeerID()
 	if err != nil {
 		return err
 	}
-	return downloadFileFromTorrent(torrent)
+	if parser.IsAMagnet(location) {
+		return downloadFileFromMagnet(context, location, peerID)
+	}
+
+	torrent, err := torrentparser.ParseTorrentFile(location)
+
+	if err != nil {
+		return err
+	}
+
+	return downloadFileFromTorrent(context, torrent, peerID)
 }
 
-// func DonwloadFileFromMagnet(magnetLink string) error {
-// 	magnetLink, err := parser.ParseMagnet(magnetLink)
-//
-// 	if err != nil {
-// 		return err
-// 	}
-//
-//
-// }
+func downloadFileFromMagnet(ctx context.Context, magnetLink string, peerID [20]byte) error {
+	magnetURI, err := parser.ParseMagnet(magnetLink)
+	if err != nil {
+		return err
+	}
 
-func downloadFileFromTorrent(torrent types.TorrentFile) error {
+	torrent, err := metadata.Fetch(ctx, magnetURI, peerID)
+	if err != nil {
+		return err
+	}
+
+	return downloadFileFromTorrent(ctx, torrent, peerID)
+}
+
+func downloadFileFromTorrent(ctx context.Context, torrent types.TorrentFile, peerID [20]byte) error {
+	// TODO: Support multiple files here
 	file, err := createFile(torrent)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	peerID, err := helpers.GeneratePeerID()
-	if err != nil {
-		return err
-	}
-
-	context := context.Background()
-	return downloadLoop(context, torrent, peerID, file)
+	return downloadLoop(ctx, torrent, peerID, file)
 }
 
 func createFile(torrent types.TorrentFile) (*os.File, error) {
