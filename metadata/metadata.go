@@ -16,6 +16,7 @@ import (
 )
 
 func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types.TorrentFile, error) {
+	// TODO: The magnet links typically don't have length properties. Separate this implementation for the magnet announcer download that is not the peer/file download.
 	p := &peer.Progress{}
 	length, err := strconv.ParseInt(magnet.Length, 10, 64)
 	if err != nil {
@@ -75,15 +76,15 @@ func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.Torrent
 		return types.TorrentFile{}, err
 	}
 
-	data, ok := extension.(map[string]any)
+	_, ok := extension.(map[string]any)
 
 	if !ok {
 		return types.TorrentFile{}, errors.New("metadataID is not a dictionary")
 	}
 
-	for key, value := range data {
-		fmt.Printf("Key: %s, Value: %v\n", key, value)
-	}
+	// for key, value := range data {
+	// 	fmt.Printf("Key: %s, Value: %v\n", key, value)
+	// }
 
 	return types.TorrentFile{}, errors.New("stop here")
 }

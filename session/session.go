@@ -30,7 +30,6 @@ func DownloadFile(location string) error {
 	}
 
 	torrent, err := torrentparser.ParseTorrentFile(location)
-
 	if err != nil {
 		return err
 	}
@@ -43,6 +42,8 @@ func downloadFileFromMagnet(ctx context.Context, magnetLink string, peerID [20]b
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("%# v\n", magnetURI)
 
 	torrent, err := metadata.Fetch(ctx, magnetURI, peerID)
 	if err != nil {

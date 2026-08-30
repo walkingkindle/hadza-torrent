@@ -2,26 +2,23 @@ package parser
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
 const MAGNETSTART = "magnet:?"
 
 func ParseMagnet(magnetLink string) (MagnetURI, error) {
-	if magnetLink == "" {
-		return MagnetURI{}, ErrInvalidMagnetLink
-	}
-	if !IsAMagnet(magnetLink) {
+	if magnetLink == "" || !IsAMagnet(magnetLink) {
 		return MagnetURI{}, ErrInvalidMagnetLink
 	}
 
-	_, cutMagnet, found := strings.Cut(magnetLink, MAGNETSTART)
-
-	if !found {
-		return MagnetURI{}, ErrInvalidMagnetLink
+	u, err := url.Parse(magnetLink)
+	if err != nil {
+		return MagnetURI{}, err
 	}
 
-	magnetURI := mapKeysToMagnetURI(extractKeysFromLink(strings.Split(cutMagnet, "&")))
+	magnetURI := mapKeysToMagnetURI(u.Query())
 
 	if magnetURI.ExactTopic == "" {
 		return MagnetURI{}, ErrMissingExactTopic
@@ -30,53 +27,38 @@ func ParseMagnet(magnetLink string) (MagnetURI, error) {
 	return magnetURI, nil
 }
 
-func extractKeysFromLink(parts []string) map[string][]string {
-	KeysMap := map[string][]string{}
-	for i := range parts {
-		for j := range KeysArr {
-			if strings.HasPrefix(parts[i], KeysArr[j]) {
-				_, value, found := strings.Cut(parts[i], fmt.Sprintf("%s=", KeysArr[j]))
-
-				if found {
-					KeysMap[KeysArr[j]] = append(KeysMap[KeysArr[j]], value)
-				}
-			}
-		}
-	}
-	return KeysMap
-}
-
-func mapKeysToMagnetURI(KeysMap map[string][]string) MagnetURI {
+func mapKeysToMagnetURI(values url.Values) MagnetURI {
 	var magnetURI MagnetURI
-	for p := range KeysMap {
-		switch p {
+	for key, values := range values {
+		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
+		switch key {
 		case ExactTopic:
-			magnetURI.ExactTopic = KeysMap[p][0]
+			magnetURI.ExactTopic = values[0]
 		case DisplayName:
-			magnetURI.DisplayName = KeysMap[p][0]
+			magnetURI.DisplayName = values[0]
 		case ExactLength:
-			magnetURI.ExactLength = KeysMap[p][0]
+			magnetURI.ExactLength = values[0]
 		case AddressTracker:
-			magnetURI.Trackers = append(magnetURI.Trackers, KeysMap[p]...)
+			magnetURI.Trackers = append(magnetURI.Trackers, values...)
 		case WebSeed:
-			magnetURI.WebSeed = KeysMap[p][0]
+			magnetURI.WebSeed = values[0]
 
 		case AcceptableSource:
-			magnetURI.AcceptSource = KeysMap[p][0]
+			magnetURI.AcceptSource = values[0]
 
 		case ExactSource:
-			magnetURI.ExactSource = KeysMap[p][0]
+			magnetURI.ExactSource = values[0]
 
 		case KeywordTopic:
-			magnetURI.KeywordTopic = KeysMap[p][0]
+			magnetURI.KeywordTopic = values[0]
 
 		case ManifestTopic:
-			magnetURI.ManifestTopic = KeysMap[p][0]
+			magnetURI.ManifestTopic = values[0]
 
 		case SelectOnly:
-			magnetURI.SelectOnly = KeysMap[p][0]
+			magnetURI.SelectOnly = values[0]
 		case Peer:
-			magnetURI.Peer = KeysMap[p][0]
+			magnetURI.Peer = values[0]
 
 		}
 	}
