@@ -5,14 +5,22 @@ import (
 	"errors"
 
 	"torrent-client-go/peer"
-	"torrent-client-go/types"
 )
 
-func GetPeers(torrent types.TorrentInfo, peerId string, state peer.DownloadState) (peer.TrackersResponse, error) {
-	url, err := buildTrackerURL(torrent, peerId, state)
-	if err != nil {
-		return peer.TrackersResponse{}, errors.New("failed parsing url")
-	}
+func GetPeers(request peer.AnnounceRequest) (peer.TrackersResponse, error) {
+	for _, trackerURL := range request.Trackers {
+		url, err := buildTrackerURL(request, trackerURL)
+		if err != nil {
+			return peer.TrackersResponse{}, errors.New("failed parsing url")
+		}
+		response, err := getResponse(url)
+		if err != nil {
+			continue
+		}
 
-	return getResponse(url)
+		if response.Peers != nil {
+			return response, nil
+		}
+	}
+	return peer.TrackersResponse{}, errors.New("Could not fetch a response from any of the trackers")
 }

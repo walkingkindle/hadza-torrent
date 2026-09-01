@@ -80,7 +80,7 @@ func downloadLoop(ctx context.Context, torrent types.TorrentFile, peerID [20]byt
 	downloadCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p := &peer.Progress{}
-	announceResponse := announcer.PerformAnnounce(
+	announceResponse := announcer.AnnounceTorrent(
 		downloadCtx,
 		types.TorrentInfo{InfoHash: string(torrent.InfoHash[:]), Announce: torrent.Announce, Length: int64(torrent.Length)},
 		string(peerID[:]),

@@ -21,6 +21,13 @@ type DownloadState struct {
 	Left       int64
 }
 
+type AnnounceRequest struct {
+	InfoHash string
+	PeerID   string
+	State    func() DownloadState
+	Trackers []string
+}
+
 type Progress struct {
 	uploaded   atomic.Int64
 	downloaded atomic.Int64

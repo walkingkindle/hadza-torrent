@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 
 	"torrent-client-go/announcer"
 	bencodeparser "torrent-client-go/bencode-decoder"
@@ -16,19 +15,10 @@ import (
 )
 
 func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types.TorrentFile, error) {
-	// TODO: The magnet links typically don't have length properties. Separate this implementation for the magnet announcer download that is not the peer/file download.
-	p := &peer.Progress{}
-	length, err := strconv.ParseInt(magnet.Length, 10, 64)
-	if err != nil {
-		return types.TorrentFile{}, err
-	}
-	announceResponse := announcer.PerformAnnounce(
+	announceResponse := announcer.AnnounceMagnet(
 		ctx,
-		types.TorrentInfo{Announce: magnet.Trackers[0], InfoHash: magnet.Infohash, Length: length},
+		magnet,
 		string(peerID[:]),
-		func() peer.DownloadState {
-			return p.DownloadState(length)
-		},
 	)
 	for response := range announceResponse {
 		for _, p := range response {

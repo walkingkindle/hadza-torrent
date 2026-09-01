@@ -6,12 +6,48 @@ import (
 	"log/slog"
 	"time"
 
+	parser "torrent-client-go/magnet-parser"
 	"torrent-client-go/peer"
 	"torrent-client-go/tracker"
 	"torrent-client-go/types"
 )
 
-func PerformAnnounce(ctx context.Context, torrent types.TorrentInfo, peerID string, progress func() peer.DownloadState) <-chan []peer.Peer {
+func AnnounceTorrent(
+	ctx context.Context,
+	torrent types.TorrentInfo,
+	peerID string,
+	progress func() peer.DownloadState,
+) <-chan []peer.Peer {
+	return performAnnounce(ctx, func() (peer.TrackersResponse, error) {
+		return tracker.GetPeers(peer.AnnounceRequest{
+			InfoHash: torrent.InfoHash,
+			PeerID:   peerID,
+			Trackers: []string{torrent.Announce},
+			State:    progress,
+		})
+	})
+}
+
+func AnnounceMagnet(
+	ctx context.Context,
+	magnet parser.MagnetURI,
+	peerID string,
+) <-chan []peer.Peer {
+	return performAnnounce(ctx, func() (peer.TrackersResponse, error) {
+		return tracker.GetPeers(peer.AnnounceRequest{
+			InfoHash: magnet.Infohash,
+			PeerID:   peerID,
+			Trackers: magnet.Trackers,
+			State:    nil,
+		})
+	})
+}
+
+func performAnnounce(
+	ctx context.Context,
+	announce func() (peer.TrackersResponse, error),
+	// progress func() peer.DownloadState,
+) <-chan []peer.Peer {
 	peersCh := make(chan []peer.Peer, 1)
 
 	go func() {
@@ -26,9 +62,7 @@ func PerformAnnounce(ctx context.Context, torrent types.TorrentInfo, peerID stri
 
 		backOff := minBackoff
 		for {
-			response, err := tracker.GetPeers(
-				torrent, peerID, progress(),
-			)
+			response, err := announce()
 			if err != nil {
 				slog.Warn("announce failed, backing off",
 					"err", err, "retry_in", backOff)

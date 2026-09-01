@@ -10,7 +10,6 @@ import (
 
 	bencodeparser "torrent-client-go/bencode-decoder"
 	"torrent-client-go/peer"
-	"torrent-client-go/types"
 )
 
 func getResponse(url string) (peer.TrackersResponse, error) {
@@ -38,24 +37,28 @@ func getResponse(url string) (peer.TrackersResponse, error) {
 	return parseBodyIntoPeerStruct(result)
 }
 
-func buildTrackerURL(torrentInfo types.TorrentInfo, peerId string, state peer.DownloadState) (string, error) {
-	base, err := url.Parse(torrentInfo.Announce)
+func buildTrackerURL(request peer.AnnounceRequest, trackerURL string) (string, error) {
+	base, err := url.Parse(trackerURL)
 	if err != nil {
 		return "", err
 	}
 
 	params := url.Values{
-		"info_hash":  []string{string(torrentInfo.InfoHash)},
-		"peer_id":    []string{peerId},
-		"port":       []string{strconv.Itoa(6881)},
-		"uploaded":   []string{strconv.FormatInt(state.Uploaded, 10)},
-		"downloaded": []string{strconv.FormatInt(state.Downloaded, 10)},
-		"compact":    []string{"1"},
-		"left":       []string{strconv.FormatInt(state.Left, 10)},
+		"info_hash": []string{string(request.InfoHash[:])},
+		"peer_id":   []string{string(request.PeerID[:])},
+		"port":      []string{strconv.Itoa(6881)},
 	}
+	if request.State != nil {
+		state := request.State()
 
-	if state.Downloaded == 0 {
-		params.Add("event", "started")
+		params.Set("uploaded", strconv.FormatInt(state.Uploaded, 10))
+		params.Set("downloaded", strconv.FormatInt(state.Downloaded, 10))
+		params.Set("compact", "1")
+		params.Set("left", strconv.FormatInt(state.Left, 10))
+
+		if state.Downloaded == 0 {
+			params.Add("event", "started")
+		}
 	}
 
 	base.RawQuery = params.Encode()
