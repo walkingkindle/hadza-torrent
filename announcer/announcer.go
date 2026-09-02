@@ -19,7 +19,7 @@ func AnnounceTorrent(
 	progress func() peer.DownloadState,
 ) <-chan []peer.Peer {
 	return performAnnounce(ctx, func() (peer.TrackersResponse, error) {
-		return tracker.GetPeers(peer.AnnounceRequest{
+		return tracker.GetPeers(ctx, peer.AnnounceRequest{
 			InfoHash: torrent.InfoHash,
 			PeerID:   peerID,
 			Trackers: []string{torrent.Announce},
@@ -34,7 +34,7 @@ func AnnounceMagnet(
 	peerID string,
 ) <-chan []peer.Peer {
 	return performAnnounce(ctx, func() (peer.TrackersResponse, error) {
-		return tracker.GetPeers(peer.AnnounceRequest{
+		return tracker.GetPeers(ctx, peer.AnnounceRequest{
 			InfoHash: magnet.Infohash,
 			PeerID:   peerID,
 			Trackers: magnet.Trackers,

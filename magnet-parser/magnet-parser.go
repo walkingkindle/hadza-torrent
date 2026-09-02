@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 )
@@ -30,7 +29,6 @@ func ParseMagnet(magnetLink string) (MagnetURI, error) {
 func mapKeysToMagnetURI(values url.Values) MagnetURI {
 	var magnetURI MagnetURI
 	for key, values := range values {
-		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
 		switch key {
 		case ExactTopic:
 			magnetURI.ExactTopic = values[0]
