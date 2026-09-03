@@ -13,6 +13,8 @@ type Peer struct {
 type TrackersResponse struct {
 	Peers    []Peer
 	Interval int
+	Seeders  int
+	Leechers int
 }
 
 type DownloadState struct {

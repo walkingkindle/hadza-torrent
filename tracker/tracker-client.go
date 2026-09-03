@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 
 	"torrent-client-go/peer"
@@ -21,9 +22,9 @@ func NewTrackerClient(trackerURL string) (TrackerClient, error) {
 	case "http", "https":
 		return &HTTPTrackerClient{BaseURL: u}, nil
 	case "udp":
-		return &UDPTrackerClient{URL: u}, nil
-	case "ws", "wss":
-		return &WSSTrackerClient{URL: u}, nil
+		return &UDPTrackerClient{BaseURL: u}, nil
+	// case "ws", "wss":
+	// 	return &WSSTrackerClient{URL: u}, nil
 	default:
 		return nil, fmt.Errorf("unsupported tracker scheme: %s", u.Scheme)
 	}

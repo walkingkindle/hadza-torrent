@@ -180,11 +180,11 @@ func (pc *PeerConnection) ReadMessage() (*Message, error) {
 func Connect(peer Peer, infohash [20]byte, peerID [20]byte) (PeerConnection, error) {
 	addr := net.JoinHostPort(peer.IP.String(), strconv.Itoa(int(peer.Port)))
 
-	slog.Debug("dialing peer", "peer", addr)
+	slog.Info("dialing peer", "peer", addr)
 
 	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
 	if err != nil {
-		slog.Debug("dial failed", "peer", addr, "err", err)
+		slog.Info("dial failed", "peer", addr, "err", err)
 		return PeerConnection{}, err
 	}
 

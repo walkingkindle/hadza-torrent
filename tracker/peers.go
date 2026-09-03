@@ -11,23 +11,34 @@ import (
 
 func GetPeers(ctx context.Context, request peer.AnnounceRequest) (*peer.TrackersResponse, error) {
 	for _, trackerURL := range request.Trackers {
-
 		slog.Info("calling tracker", "trackerURL", trackerURL)
 
 		client, err := NewTrackerClient(trackerURL)
 		if err != nil {
-			return nil, err
+			slog.Error(
+				"failed to create tracker client",
+				"trackerURL", trackerURL,
+				"error", err,
+			)
+			continue
 		}
+
+		slog.Info("found tracker client", "tracker", trackerURL)
 
 		response, err := client.Announce(ctx, request)
 		if err != nil {
-			slog.Error("Failed to fetch response from the trackerURL", "trackerURL", trackerURL, "error", err.Error())
-			return nil, err
+			slog.Error(
+				"failed to fetch response from tracker",
+				"trackerURL", trackerURL,
+				"error", err,
+			)
+			continue
 		}
 
-		if response.Peers != nil {
+		if len(response.Peers) > 0 {
 			return response, nil
 		}
 	}
-	return nil, errors.New("Could not fetch a response from any of the trackers")
+
+	return nil, errors.New("could not fetch a response from any of the trackers")
 }

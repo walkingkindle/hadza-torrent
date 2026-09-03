@@ -22,6 +22,8 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 	)
 	for response := range announceResponse {
 		for _, p := range response {
+			slog.Info("received peer", "IP", p.IP, "port", p.Port)
+			// TODO: UDP does find peers so that helped but calling them sequentially like this is too slow. We need a pipelining that we had on download loop to work the same way here.
 			var infohash [20]byte
 			copy(infohash[:], []byte(magnet.Infohash))
 			conn, err := peer.Connect(p, infohash, peerID)
@@ -66,15 +68,15 @@ func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.Torrent
 		return types.TorrentFile{}, err
 	}
 
-	_, ok := extension.(map[string]any)
+	data, ok := extension.(map[string]any)
 
 	if !ok {
 		return types.TorrentFile{}, errors.New("metadataID is not a dictionary")
 	}
 
-	// for key, value := range data {
-	// 	fmt.Printf("Key: %s, Value: %v\n", key, value)
-	// }
+	for key, value := range data {
+		fmt.Printf("Key: %s, Value: %v\n", key, value)
+	}
 
 	return types.TorrentFile{}, errors.New("stop here")
 }

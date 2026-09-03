@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"net/url"
 	"strings"
 )
@@ -22,7 +23,12 @@ func ParseMagnet(magnetLink string) (MagnetURI, error) {
 	if magnetURI.ExactTopic == "" {
 		return MagnetURI{}, ErrMissingExactTopic
 	}
+	infoHash, ok := magnetURI.GetInfoHash()
 
+	if !ok {
+		return MagnetURI{}, errors.New("Invalid infohash value")
+	}
+	magnetURI.Infohash = infoHash
 	return magnetURI, nil
 }
 
@@ -60,9 +66,18 @@ func mapKeysToMagnetURI(values url.Values) MagnetURI {
 
 		}
 	}
+
 	return magnetURI
 }
 
 func IsAMagnet(magnet string) bool {
 	return strings.HasPrefix(magnet, MAGNETSTART)
+}
+
+func (m MagnetURI) GetInfoHash() (string, bool) {
+	BTIHPrefix := "urn:btih:"
+	if strings.HasPrefix(m.ExactTopic, BTIHPrefix) {
+		return strings.TrimPrefix(m.ExactTopic, BTIHPrefix), true
+	}
+	return "", false // Not a BitTorrent magnet link or missing prefix
 }

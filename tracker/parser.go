@@ -36,13 +36,31 @@ func parseBodyIntoPeerStruct(result any) (*peer.TrackersResponse, error) {
 		return nil, err
 	}
 
+	seeders, leechers, err := assertSeedersLeechers(mapVal)
+
 	slog.Info("tracker peer payload", "bytes", len(peerString))
 
 	peers, err := mapPeerBytesToPeer([]byte(peerString))
 	if err != nil {
 		return nil, err
 	}
-	return &peer.TrackersResponse{Interval: interval, Peers: peers}, nil
+	return &peer.TrackersResponse{Interval: interval, Peers: peers, Seeders: seeders, Leechers: leechers}, nil
+}
+
+func assertSeedersLeechers(mapVal map[string]any) (int, int, error) {
+	seeders, ok := mapVal["seeders"].(int)
+
+	if !ok {
+		return 0, 0, errors.New("Error while formatting peers response")
+	}
+
+	leechers, ok1 := mapVal["leechers"].(int)
+
+	if !ok1 {
+		return 0, 0, errors.New("Error while formatting peers response")
+	}
+
+	return seeders, leechers, nil
 }
 
 func assertTrackerResponse(mapVal map[string]any) (string, int, error) {
