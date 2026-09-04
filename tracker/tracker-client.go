@@ -23,8 +23,8 @@ func NewTrackerClient(trackerURL string) (TrackerClient, error) {
 		return &HTTPTrackerClient{BaseURL: u}, nil
 	case "udp":
 		return &UDPTrackerClient{BaseURL: u}, nil
-	// case "ws", "wss":
-	// 	return &WSSTrackerClient{URL: u}, nil
+	case "ws", "wss":
+		return &WSSTrackerClient{URL: u}, nil
 	default:
 		return nil, fmt.Errorf("unsupported tracker scheme: %s", u.Scheme)
 	}

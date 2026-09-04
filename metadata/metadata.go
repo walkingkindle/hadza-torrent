@@ -3,9 +3,11 @@ package metadata
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"torrent-client-go/announcer"
 	bencodeparser "torrent-client-go/bencode-decoder"
@@ -14,48 +16,131 @@ import (
 	"torrent-client-go/types"
 )
 
+const metadataWorkers = 20
+
 func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types.TorrentFile, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var infohash [20]byte
+	copy(infohash[:], []byte(magnet.Infohash))
 	announceResponse := announcer.AnnounceMagnet(
 		ctx,
 		magnet,
 		string(peerID[:]),
 	)
-	for response := range announceResponse {
-		for _, p := range response {
-			slog.Info("received peer", "IP", p.IP, "port", p.Port)
-			// TODO: UDP does find peers so that helped but calling them sequentially like this is too slow. We need a pipelining that we had on download loop to work the same way here.
-			var infohash [20]byte
-			copy(infohash[:], []byte(magnet.Infohash))
-			conn, err := peer.Connect(p, infohash, peerID)
-			if err != nil {
-				continue
+	jobs := make(chan peer.Peer)
+	results := make(chan types.TorrentFile, 1)
+
+	var wg sync.WaitGroup
+	for range metadataWorkers {
+		wg.Go(func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+
+				case p, ok := <-jobs:
+					if !ok {
+						return
+					}
+
+					slog.Info(
+						"worker trying peer",
+						"IP", p.IP,
+						"port", p.Port,
+					)
+
+					torrent, err := fetchMetadataFromPeer(
+						ctx,
+						p,
+						magnet,
+						peerID,
+					)
+					if err != nil {
+						slog.Warn(
+							"metadata fetch failed",
+							"IP", p.IP,
+							"port", p.Port,
+							"error", err,
+						)
+						continue
+					}
+
+					// We found the metadata!
+					select {
+					case results <- torrent:
+						cancel()
+					case <-ctx.Done():
+					}
+
+					return
+				}
 			}
-
-			if !conn.SupportsExtension {
-				slog.Warn("this peer does not support extension, continuing")
-				conn.Conn.Close()
-				continue
-			}
-
-			err = conn.SendInterested()
-			if err != nil {
-				slog.Warn("peer connection suceeded but not able to send interested")
-				conn.Conn.Close()
-				continue
-			}
-
-			torrent, err := fetchFromPeer(ctx, conn)
-			conn.Conn.Close()
-
-			if err != nil {
-				slog.Warn("failed to fetch metadata", "peer", p.IP, "error", err)
-				continue
-			}
-
-			return torrent, nil
-		}
+		})
 	}
-	return types.TorrentFile{}, errors.New("could not find a valid response from any of the peers")
+
+	// Feed peers into workers
+	go func() {
+		defer close(jobs)
+
+		for response := range announceResponse {
+			for _, p := range response {
+				select {
+				case jobs <- p:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	// Close results once all workers have stopped
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Wait for first successful worker
+	for torrent := range results {
+		return torrent, nil
+	}
+
+	return types.TorrentFile{}, errors.New(
+		"could not find a valid response from any of the peers",
+	)
+}
+
+func fetchMetadataFromPeer(ctx context.Context, p peer.Peer, magnet parser.MagnetURI, peerID [20]byte) (types.TorrentFile, error) {
+	slog.Info("received peer", "IP", p.IP, "port", p.Port)
+	infohashBytes, err := hex.DecodeString(magnet.Infohash)
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+
+	if len(infohashBytes) != 20 {
+		return types.TorrentFile{}, errors.New("invalid infohash length")
+	}
+
+	var infohash [20]byte
+	copy(infohash[:], infohashBytes)
+	conn, err := peer.Connect(p, infohash, peerID)
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+
+	defer conn.Conn.Close()
+
+	if !conn.SupportsExtension {
+		return types.TorrentFile{}, errors.New("peer does not support extension protocol")
+	}
+
+	err = conn.SendInterested()
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+
+	return fetchFromPeer(ctx, conn)
 }
 
 func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.TorrentFile, error) {
@@ -77,6 +162,8 @@ func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.Torrent
 	for key, value := range data {
 		fmt.Printf("Key: %s, Value: %v\n", key, value)
 	}
+
+	conn.Conn.Close()
 
 	return types.TorrentFile{}, errors.New("stop here")
 }
