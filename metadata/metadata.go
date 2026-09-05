@@ -22,12 +22,15 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var infohash [20]byte
-	copy(infohash[:], []byte(magnet.Infohash))
+	infohash, err := getInfoHashFromMagnetURI(magnet)
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
 	announceResponse := announcer.AnnounceMagnet(
 		ctx,
 		magnet,
 		string(peerID[:]),
+		string(infohash[:]),
 	)
 	jobs := make(chan peer.Peer)
 	results := make(chan types.TorrentFile, 1)
@@ -56,6 +59,7 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 						p,
 						magnet,
 						peerID,
+						infohash,
 					)
 					if err != nil {
 						slog.Warn(
@@ -111,19 +115,9 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 	)
 }
 
-func fetchMetadataFromPeer(ctx context.Context, p peer.Peer, magnet parser.MagnetURI, peerID [20]byte) (types.TorrentFile, error) {
+func fetchMetadataFromPeer(ctx context.Context, p peer.Peer, magnet parser.MagnetURI, peerID [20]byte, infohash [20]byte) (types.TorrentFile, error) {
 	slog.Info("received peer", "IP", p.IP, "port", p.Port)
-	infohashBytes, err := hex.DecodeString(magnet.Infohash)
-	if err != nil {
-		return types.TorrentFile{}, err
-	}
 
-	if len(infohashBytes) != 20 {
-		return types.TorrentFile{}, errors.New("invalid infohash length")
-	}
-
-	var infohash [20]byte
-	copy(infohash[:], infohashBytes)
 	conn, err := peer.Connect(p, infohash, peerID)
 	if err != nil {
 		return types.TorrentFile{}, err
@@ -141,6 +135,20 @@ func fetchMetadataFromPeer(ctx context.Context, p peer.Peer, magnet parser.Magne
 	}
 
 	return fetchFromPeer(ctx, conn)
+}
+
+func getInfoHashFromMagnetURI(magnet parser.MagnetURI) ([20]byte, error) {
+	infohashBytes, err := hex.DecodeString(magnet.Infohash)
+	if err != nil {
+		return [20]byte{}, err
+	}
+	if len(infohashBytes) != 20 {
+		return [20]byte{}, errors.New("invalid infohash length")
+	}
+	var infohash [20]byte
+	copy(infohash[:], infohashBytes)
+
+	return infohash, nil
 }
 
 func fetchFromPeer(ctx context.Context, conn peer.PeerConnection) (types.TorrentFile, error) {

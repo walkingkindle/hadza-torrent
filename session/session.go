@@ -43,8 +43,6 @@ func downloadFileFromMagnet(ctx context.Context, magnetLink string, peerID [20]b
 		return err
 	}
 
-	fmt.Printf("%+v\n", magnetURI)
-
 	torrent, err := metadata.Fetch(ctx, magnetURI, peerID)
 	if err != nil {
 		return err
