@@ -33,13 +33,14 @@ func AnnounceMagnet(
 	magnet parser.MagnetURI,
 	peerID string,
 	infohash string,
+	progress func() peer.DownloadState,
 ) <-chan []peer.Peer {
 	return performAnnounce(ctx, func() (*peer.TrackersResponse, error) {
 		return tracker.GetPeers(ctx, peer.AnnounceRequest{
 			InfoHash: infohash,
 			PeerID:   peerID,
 			Trackers: magnet.Trackers,
-			State:    nil,
+			State:    progress,
 		})
 	})
 }

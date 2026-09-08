@@ -48,13 +48,13 @@ func parseBodyIntoPeerStruct(result any) (*peer.TrackersResponse, error) {
 }
 
 func assertSeedersLeechers(mapVal map[string]any) (int, int, error) {
-	seeders, ok := mapVal["seeders"].(int)
+	seeders, ok := mapVal["complete"].(int)
 
 	if !ok {
 		return 0, 0, errors.New("Error while formatting peers response")
 	}
 
-	leechers, ok1 := mapVal["leechers"].(int)
+	leechers, ok1 := mapVal["incomplete"].(int)
 
 	if !ok1 {
 		return 0, 0, errors.New("Error while formatting peers response")

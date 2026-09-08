@@ -153,7 +153,7 @@ func (c *UDPTrackerClient) connect(
 	response := make([]byte, 16)
 
 	if _, err := io.ReadFull(conn, response); err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	action := binary.BigEndian.Uint32(response[0:4])

@@ -25,13 +25,12 @@ func (c *HTTPTrackerClient) Announce(ctx context.Context, request peer.AnnounceR
 		"info_hash": []string{string(request.InfoHash[:])},
 		"peer_id":   []string{string(request.PeerID[:])},
 		"port":      []string{strconv.Itoa(6881)},
+		"compact":   []string{"1"},
 	}
 	if request.State != nil {
 		state := request.State()
-
 		params.Set("uploaded", strconv.FormatInt(state.Uploaded, 10))
 		params.Set("downloaded", strconv.FormatInt(state.Downloaded, 10))
-		params.Set("compact", "1")
 		params.Set("left", strconv.FormatInt(state.Left, 10))
 
 		if state.Downloaded == 0 {
@@ -43,10 +42,13 @@ func (c *HTTPTrackerClient) Announce(ctx context.Context, request peer.AnnounceR
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v")
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 
 	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
 
 	responseByte, err := io.ReadAll(resp.Body)
 	if err != nil {

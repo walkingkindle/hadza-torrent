@@ -14,6 +14,10 @@ func Decode(data []byte) (any, error) {
 	return val, err
 }
 
+func DecodeWithOffset(data []byte) (any, int, error) {
+	return Dispatch(0, data)
+}
+
 func Encode(data any) ([]byte, error) {
 	if data == nil {
 		return nil, errors.New("data cannot be blank")

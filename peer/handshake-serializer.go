@@ -40,12 +40,9 @@ func ParseHandshake(data []byte) (h Handshake, err error) {
 	if string(data[1:1+len(protocol)]) != protocol {
 		return h, errors.New("not a bittorrent message or wrong protocol")
 	}
-
 	copy(h.InfoHash[:], data[28:48])
-
 	copy(h.PeerID[:], data[48:68])
-
-	copy(h.Reserved[:], data[48:68])
+	copy(h.Reserved[:], data[20:28])
 
 	return h, nil
 }

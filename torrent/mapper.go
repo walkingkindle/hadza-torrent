@@ -7,6 +7,47 @@ import (
 	"torrent-client-go/types"
 )
 
+func mapInfoToTorrentFile(
+	info map[string]any,
+	infoHash [20]byte,
+) (types.TorrentFile, error) {
+	var torrent types.TorrentFile
+
+	torrent.InfoHash = infoHash
+
+	name, err := parseStringFromData(info, "name")
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+	torrent.Name = name
+
+	pieceLength, err := parseIntFromData(info, "piece length")
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+	torrent.PieceLength = pieceLength
+
+	length, err := parseIntFromData(info, "length")
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+	torrent.Length = length
+
+	piecesStr, ok := info["pieces"].(string)
+	if !ok {
+		return types.TorrentFile{}, errors.New("hashes collection invalid")
+	}
+
+	hashesCollection, err := gethashesFromtorrent([]byte(piecesStr))
+	if err != nil {
+		return types.TorrentFile{}, err
+	}
+
+	torrent.PieceHashes = hashesCollection
+
+	return torrent, nil
+}
+
 func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types.TorrentFile, err error) {
 	torrent.InfoHash = infohash
 
@@ -21,9 +62,10 @@ func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 	}
 	torrent.Name = name
 
+	// TODO: Handle case when you get an announce-list here instead of announce and we already have the concurrecnyl to fetch all the peers at the same time lol
 	announce, err := parseStringFromData(data, "announce")
-	if err != nil {
-		return types.TorrentFile{}, err
+	if err == nil {
+		torrent.Announce = announce
 	}
 	torrent.Announce = announce
 	pieceLength, err := parseIntFromData(info, "piece length")
