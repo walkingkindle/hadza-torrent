@@ -3,6 +3,7 @@ package torrentparser
 import (
 	"errors"
 	"fmt"
+	"maps"
 
 	"torrent-client-go/types"
 )
@@ -12,7 +13,9 @@ func mapInfoToTorrentFile(
 	infoHash [20]byte,
 ) (types.TorrentFile, error) {
 	var torrent types.TorrentFile
-
+	for val := range maps.Values(info) {
+		fmt.Println(val)
+	}
 	torrent.InfoHash = infoHash
 
 	name, err := parseStringFromData(info, "name")
@@ -27,11 +30,27 @@ func mapInfoToTorrentFile(
 	}
 	torrent.PieceLength = pieceLength
 
-	length, err := parseIntFromData(info, "length")
-	if err != nil {
-		return types.TorrentFile{}, err
+	if filesValue, exists := info["files"]; exists {
+		files, err := parseTorrentFiles(filesValue)
+		if err != nil {
+			return types.TorrentFile{}, err
+		}
+
+		torrent.Files = files
+	} else {
+		length, err := parseIntFromData(info, "length")
+		if err != nil {
+			return types.TorrentFile{}, err
+		}
+		torrent.Length = length
+
+		torrent.Files = []types.TorrentFileEntry{
+			{
+				Path:   []string{torrent.Name},
+				Length: int64(length),
+			},
+		}
 	}
-	torrent.Length = length
 
 	piecesStr, ok := info["pieces"].(string)
 	if !ok {
@@ -46,6 +65,75 @@ func mapInfoToTorrentFile(
 	torrent.PieceHashes = hashesCollection
 
 	return torrent, nil
+}
+
+func parseTorrentFiles(value any) ([]types.TorrentFileEntry, error) {
+	files, ok := value.([]any)
+	if !ok {
+		return nil, errors.New("invalid files collection")
+	}
+
+	result := make([]types.TorrentFileEntry, 0, len(files))
+
+	for i, value := range files {
+		fileData, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid file entry at index %d", i)
+		}
+
+		length, err := parseIntFromData(fileData, "length")
+		if err != nil {
+			return nil, fmt.Errorf(
+				"invalid file %d length: %w",
+				i,
+				err,
+			)
+		}
+
+		pathValue, ok := fileData["path"]
+		if !ok {
+			return nil, fmt.Errorf("file %d missing path", i)
+		}
+
+		pathParts, err := parsePath(pathValue)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"invalid path for file %d: %w",
+				i,
+				err,
+			)
+		}
+
+		result = append(result, types.TorrentFileEntry{
+			Path:   pathParts,
+			Length: int64(length),
+		})
+	}
+
+	return result, nil
+}
+
+func parsePath(value any) ([]string, error) {
+	path, ok := value.([]any)
+	if !ok {
+		return nil, errors.New("path is not a list")
+	}
+
+	result := make([]string, 0, len(path))
+
+	for i, part := range path {
+		str, ok := part.(string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"path component %d is not a string",
+				i,
+			)
+		}
+
+		result = append(result, str)
+	}
+
+	return result, nil
 }
 
 func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types.TorrentFile, err error) {
@@ -67,7 +155,6 @@ func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 	if err == nil {
 		torrent.Announce = announce
 	}
-	torrent.Announce = announce
 	pieceLength, err := parseIntFromData(info, "piece length")
 	if err != nil {
 		return types.TorrentFile{}, err

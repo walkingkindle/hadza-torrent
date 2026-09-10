@@ -71,7 +71,6 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 					torrent, err := fetchMetadataFromPeer(
 						ctx,
 						p,
-						magnet,
 						peerID,
 						infohash,
 					)
@@ -129,7 +128,7 @@ func Fetch(ctx context.Context, magnet parser.MagnetURI, peerID [20]byte) (types
 	)
 }
 
-func fetchMetadataFromPeer(ctx context.Context, p peer.Peer, magnet parser.MagnetURI, peerID [20]byte, infohash [20]byte) (types.TorrentFile, error) {
+func fetchMetadataFromPeer(ctx context.Context, p peer.Peer, peerID [20]byte, infohash [20]byte) (types.TorrentFile, error) {
 	slog.Info("received peer", "IP", p.IP, "port", p.Port)
 
 	conn, err := peer.Connect(p, infohash, peerID)

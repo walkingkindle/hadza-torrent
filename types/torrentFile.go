@@ -9,10 +9,16 @@ type TorrentFile struct {
 	PieceLength int
 	Length      int
 	Name        string
+	Files       []TorrentFileEntry
 }
 
 type TorrentInfo struct {
 	Announce string
 	Length   int64
 	InfoHash string
+}
+
+type TorrentFileEntry struct {
+	Path   []string
+	Length int64
 }
