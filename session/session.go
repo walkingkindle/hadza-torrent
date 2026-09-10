@@ -58,17 +58,10 @@ func downloadFileFromMagnet(
 		return err
 	}
 
-	file, err := createFile(torrent)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
 	return downloadLoop(
 		ctx,
 		torrent,
 		peerID,
-		file,
 		func(
 			ctx context.Context,
 			progress func() peer.DownloadState,
@@ -95,17 +88,10 @@ func downloadFileFromTorrent(
 	peerID [20]byte,
 ) error {
 	// TODO: Support multiple files here
-	file, err := createFile(torrent)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
 	return downloadLoop(
 		ctx,
 		torrent,
 		peerID,
-		file,
 		func(
 			ctx context.Context,
 			progress func() peer.DownloadState,
@@ -140,7 +126,6 @@ func downloadLoop(
 	ctx context.Context,
 	torrent types.TorrentFile,
 	peerID [20]byte,
-	file *os.File,
 	announce announceFunc,
 ) error {
 	downloadCtx, cancel := context.WithCancel(ctx)
@@ -183,7 +168,6 @@ func downloadLoop(
 					p,
 					torrent,
 					peerID,
-					file,
 					state,
 				); err != nil {
 					slog.Warn(

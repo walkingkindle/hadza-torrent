@@ -4,7 +4,6 @@ package torrentparser
 import (
 	"crypto/sha1"
 	"errors"
-	"fmt"
 
 	"torrent-client-go/file"
 	"torrent-client-go/types"
@@ -25,7 +24,6 @@ func ParseTorrentFile(bencoded file.BencodedTorrent) (types.TorrentFile, error) 
 	if err != nil {
 		return types.TorrentFile{}, err
 	}
-	fmt.Printf("%+v\n", torrentFile)
 
 	return torrentFile, nil
 }

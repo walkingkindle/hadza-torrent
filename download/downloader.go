@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
+	"path/filepath"
 	"time"
 
 	"torrent-client-go/peer"
@@ -37,7 +37,11 @@ func (s *DownloadStatus) TotalPieces() int {
 	return len(s.Done)
 }
 
-func Download(ctx context.Context, conn *peer.PeerConnection, torrent types.TorrentFile, file *os.File, downloadStatus *DownloadStatus) error {
+func Download(ctx context.Context, conn *peer.PeerConnection, torrent types.TorrentFile, downloadStatus *DownloadStatus) error {
+	writer, err := NewTorrentWriter(filepath.Join("downloads", torrent.Name), torrent)
+	if err != nil {
+		return err
+	}
 	stop := context.AfterFunc(ctx, func() {
 		conn.Conn.Close()
 	})
@@ -45,7 +49,7 @@ func Download(ctx context.Context, conn *peer.PeerConnection, torrent types.Torr
 	conn.Conn.SetDeadline(time.Now().Add(60 * time.Second))
 
 	defer conn.Conn.Close()
-	err := conn.WaitForUnchoke()
+	err = conn.WaitForUnchoke()
 	if err != nil {
 		return err
 	}
@@ -77,7 +81,7 @@ func Download(ctx context.Context, conn *peer.PeerConnection, torrent types.Torr
 			return err
 		}
 
-		if _, err := file.WriteAt(piece, int64(i*torrent.PieceLength)); err != nil {
+		if err := writer.WritePiece(i, piece); err != nil {
 			downloadStatus.ReleasePiece(i)
 			return fmt.Errorf("writing piece %d: %w: %w", i, ErrLocal, err)
 		}

@@ -3,7 +3,6 @@ package torrentparser
 import (
 	"errors"
 	"fmt"
-	"maps"
 
 	"torrent-client-go/types"
 )
@@ -13,9 +12,6 @@ func mapInfoToTorrentFile(
 	infoHash [20]byte,
 ) (types.TorrentFile, error) {
 	var torrent types.TorrentFile
-	for val := range maps.Values(info) {
-		fmt.Println(val)
-	}
 	torrent.InfoHash = infoHash
 
 	name, err := parseStringFromData(info, "name")
@@ -37,6 +33,10 @@ func mapInfoToTorrentFile(
 		}
 
 		torrent.Files = files
+
+		for _, file := range files {
+			torrent.Length += int(file.Length)
+		}
 	} else {
 		length, err := parseIntFromData(info, "length")
 		if err != nil {
@@ -149,6 +149,27 @@ func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 		return types.TorrentFile{}, err
 	}
 	torrent.Name = name
+	if filesValue, exists := info["files"]; exists {
+		files, err := parseTorrentFiles(filesValue)
+		if err != nil {
+			return types.TorrentFile{}, err
+		}
+
+		torrent.Files = files
+	} else {
+		length, err := parseIntFromData(info, "length")
+		if err != nil {
+			return types.TorrentFile{}, err
+		}
+		torrent.Length = length
+
+		torrent.Files = []types.TorrentFileEntry{
+			{
+				Path:   []string{torrent.Name},
+				Length: int64(length),
+			},
+		}
+	}
 
 	// TODO: Handle case when you get an announce-list here instead of announce and we already have the concurrecnyl to fetch all the peers at the same time lol
 	announce, err := parseStringFromData(data, "announce")
@@ -161,13 +182,6 @@ func mapDataToTorrentFile(data map[string]any, infohash [20]byte) (torrent types
 	}
 
 	torrent.PieceLength = pieceLength
-
-	length, err := parseIntFromData(info, "length")
-	if err != nil {
-		return types.TorrentFile{}, err
-	}
-
-	torrent.Length = length
 
 	createdBy, err := parseStringFromData(data, "created by")
 	if err != nil {
