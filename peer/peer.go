@@ -2,12 +2,17 @@ package peer
 
 import (
 	"net"
+	"strings"
 	"sync/atomic"
 )
 
 type Peer struct {
 	IP   net.IP
 	Port uint16
+}
+
+func (p Peer) String() string {
+	return strings.Join([]string{p.IP.To4().String(), string(p.Port)}, ", ")
 }
 
 type TrackersResponse struct {
